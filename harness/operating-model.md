@@ -106,3 +106,15 @@ When applying this model to a new repo:
 4. Create `docs/roadmap.md` from the increments in the vision.
 5. Create `docs/specs/<axis>/`, `docs/tests/<axis>/`, `docs/designs/active|completed/`, and `docs/plans/active|completed/` lazily, at the start of the first increment; create `docs/guidelines/` the first time a reusable framework/platform mechanic (including the test harness) is worth recording.
 6. Retire any monolithic "current-state" doc into ARCHITECTURE.md + durable specs.
+
+For a repository with multiple subprojects, see [Monorepo variant](#monorepo-variant) below — the same model, layered on two levels.
+
+## Monorepo variant
+
+The model above describes a single project. When one repository holds several subprojects — often with different stacks or languages — apply the same model on **two levels**, without duplicating facts between them. Everything else (the principles, the per-increment cycle, the spec/guideline split) is unchanged.
+
+- **Product level (root):** facts true for the whole product. `docs/vision.md`, `docs/roadmap.md`, and a language-agnostic `docs/conventions.md` (commit format, language) live here, alongside the root `CLAUDE.md` map. The root `ARCHITECTURE.md` carries only what is **shared**: the repository layout and the **contract between subprojects**. This is the one place the file's scope widens — from "how the product is built" to "how the subprojects fit together".
+- **Subproject level:** each subproject is self-contained, with its own thin `CLAUDE.md`, its own `ARCHITECTURE.md` (that subproject's stack, layout, commands), and its own `docs/` — `specs/`, `tests/`, `guidelines/`, and a per-language `conventions.md` for coding style. The root never restates these; it links down to them.
+- **Designs and plans follow the increment's center of gravity:** a cross-subproject or product-level increment keeps its design/plan in the **root** `docs/designs|plans/`; an increment contained in one subproject keeps them under that subproject. Either way, consolidation writes durable knowledge into the relevant subproject's `specs/` and `tests/`.
+
+**Bootstrap delta.** Bootstrap steps 1–4 run once at the root (vision, the shared `ARCHITECTURE.md`, the language-agnostic `conventions.md`, the root map, the roadmap). A subproject's own `CLAUDE.md`, `ARCHITECTURE.md`, and `docs/` are created **lazily** — when that subproject is first built, typically by the increment that introduces it, not up front.
