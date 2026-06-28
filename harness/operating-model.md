@@ -1,6 +1,6 @@
 # Operating Model: Repository as System of Record (lightweight development harness)
 
-Use this as the documentation and workflow model for the project — a lightweight harness for how work is captured, structured, and carried out across sessions. Spec-driven development is one part of it, not the whole. Goal: durable knowledge lives in the repository in a structured, deduplicated, progressively-disclosed form — so any session (human or agent) can pick up work without re-reading everything or re-deriving decisions. No heavy frameworks (no OpenSpec-style spec-driven-development tooling); the per-task plan/implement engine is whatever skill flow we already use, layered under a project-level doc structure.
+Use this as the documentation and workflow model for the project — a lightweight harness for how work is captured, structured, and carried out across sessions. Goal: durable knowledge lives in the repository in a structured, deduplicated, progressively-disclosed form — so any session (human or agent) can pick up work without re-reading everything or re-deriving decisions. No heavy frameworks (no OpenSpec-style spec-driven-development tooling); the per-task plan/implement engine is whatever skill flow we already use, layered under a project-level doc structure.
 
 ## Principles
 
