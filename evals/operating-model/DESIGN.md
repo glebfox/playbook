@@ -18,8 +18,10 @@ Approved edits, grouped into the bundles that become experiment arms:
 | Bundle | Edits | Substance |
 |---|---|---|
 | A — write paths | 1, 2, 11, 12 | day-1 status line in `ARCHITECTURE.md` + stack-intent route in the map; `ARCHITECTURE.md` named in all four consolidation paths; decision-status hygiene; assorted zero-cost wording (`placeholder` collision, move-not-copy, roadmap in-progress at step 2) |
-| B — read path | 3, 4 | reconcile markers (`Source:` / `Reconciled:`); reading order in the `CLAUDE.md` skeleton, including the decisions index rule (`ls` on slugs, `Governs:` line, inbound-link invariant) |
+| B — read path | 3, 4, 5a | reconcile markers (`Source:` / `Reconciled:`); reading order in the `CLAUDE.md` skeleton, including the decisions index rule (`ls` on slugs, `Governs:` line, inbound-link invariant); the cut of the skeleton's duplicated routing table, which funds the reading order inside the same per-turn budget |
 | C — adjudication | 8, 9 | spec-vs-guideline asymmetry with a directional default; partially-realized state admitted as fact |
+
+Edit 5 splits by role. Its first half — cutting the skeleton's duplicated routing table — is an arm variable in bundle B. Its second half — vendoring the operating model into the project as `docs/operating-model.md` and pointing the map at it — is **a fixture constant in every arm, baseline included**, for the reason given under *Fixture* below: it gates the observability of the other arms, so it cannot also be one of the things being varied.
 
 Parked, not measured: mirrored `docs/tests/` removal (6), flat-specs default (7), `abandoned/` state (10). Controls guard them against regression.
 
@@ -68,7 +70,9 @@ Contents: `CLAUDE.md`, `ARCHITECTURE.md`, `docs/vision.md`, `docs/roadmap.md`, `
 
 **The operating model is vendored into the fixture as `docs/operating-model.md`, and the map points at it.** This is load-bearing, not cosmetic. Most of the adjudication wording — the spec-vs-guideline asymmetry, built-vs-intended, the significance bar — lives in the model body, not in the `CLAUDE.md` skeleton. A fixture carrying only the skeleton makes arms A and C **unobservable**: the run would return zeros and we would conclude the edits are worthless.
 
-This means the suite measures the model *as read*, so its results transfer only to projects that vendor it. That is the practitioner's edit 9, which is not in the approved batch — so it is either promoted into the batch, or the README states the limit plainly. Decide before building; do not discover it during the build.
+Vendoring is the second half of approved edit 5, so this is consistent with the batch rather than presupposing an unapproved change. But it must be a **constant across all arms, baseline included**, not a variable in bundle B. If it varied, an arm without vendoring could not exhibit any body-only edit: bundle C is entirely body text (the L50 asymmetry, the L11/L38 partial-state clause), and the body halves of edits 1, 2 and 11 — bootstrap step 2, L98, L105 — are equally invisible. Those three are observable at all only because each also has a component in the skeleton.
+
+The consequence is a self-referential blind spot worth naming: **the suite cannot measure the vendoring half of edit 5, because vendoring is the precondition for measuring anything in the document body.** Its value has to be argued, not tested. What the suite does measure is the model *as read*, so results transfer only to projects that vendor it — which, after edit 5 lands, is the prescribed setup.
 
 Three fixture decisions:
 
@@ -165,6 +169,7 @@ One table per family: rows are cases, columns are arms, cells are `k/n` plus a d
 - Behavioral N=3 surfaces only large effects.
 - **A null result on bundle C is expected and is not evidence against edits 8 and 9.** They address rare failures; at these rep counts such an effect drowns. Constructing a case tuned to make them fire would measure the case, not the document.
 - `b03`'s grader is deliberately conservative: drift noticed by means other than a `git` invocation is scored as a miss. It can under-credit arm B; it cannot over-credit it.
+- **The vendoring half of edit 5 is untestable here** — it is the suite's own precondition. See *Fixture*.
 - Overfitting: a held-out third of cases is designated now, but the discipline starts with the *next* batch. This batch's nine edits are already written and approved, so there is nothing to tune against them.
 
 ## Sequence
