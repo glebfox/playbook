@@ -30,12 +30,17 @@ Parked, not measured: mirrored `docs/tests/` removal (6), flat-specs default (7)
 ```
 evals/
   README.md                    # what suites exist, how to run one
-  runner/
-    run.mjs                    # parameterized by a suite path
-    grade.mjs                  # + self-check mode against golden/
+  runner/                      # parameterized by a suite path; nothing suite-specific
+    schema.mjs  validate.mjs   # case schema and its standalone validator
+    stage.mjs                  # temp-dir staging, arm materialization, self-check
+    invoke.mjs                 # command construction, stream parsing, auth sanity guard
+    grade.mjs                  # verdicts; --self-check against golden/
+    run.mjs  report.mjs        # driver and reporting
   operating-model/
     DESIGN.md                  # this file
+    PLAN.md                    # implementation plan derived from it
     README.md                  # living: how to run, how to read results, limits
+    reference/                 # vendored panel reports: the edits' exact wording, and every case's provenance
     arms/
       01-write-paths.patch     # document hunks + fixture instantiation
       02-read-path.patch
@@ -141,9 +146,9 @@ grade:
 
 **No LLM judge, at run time or reporting time.** A judge is the largest variance source and the shortest path to an eval that measures itself. Two mechanical types:
 
-**`destination`** — the case prompt ends with a hard output contract: reply with exactly one line, the repository-relative path of the file this fact belongs in, or `NONE`. The grader takes the last non-empty line, matches it against `expect`, then checks `forbid` **against that line only**.
+**`destination`** — the CLI's `--json-schema` enforces a structured answer, `{"destination": "<path>"}`, so the graded value is a validated field rather than a parsed line. The grader matches `destination` against `expect`, then checks `forbid` **against `destination` only**. A last-non-empty-line fallback exists for runs where the schema was not honored.
 
-Whole-answer `forbid` was considered and rejected: it is biased *against* the treatment. A model that reasons — "several units share this, which tempts a guideline, but the subject is the unit, so: the spec" — names a forbidden path while rejecting it, and arm C's asymmetry text makes exactly that articulation *more* likely. The hedge the rule was meant to catch ("the transaction spec, and note the pattern in guidelines") lands on the answer line itself, so last-line-only still catches it. Calibration hand-audits multi-line answers for hedges above the answer line; only if they actually appear does the rule escalate.
+Two weaker rules were considered and rejected. Whole-answer `forbid` is biased *against* the treatment: a model that reasons — "several units share this, which tempts a guideline, but the subject is the unit, so: the spec" — names a forbidden path while rejecting it, and arm C's asymmetry text makes exactly that articulation *more* likely, so the treated arm would be penalized for reasoning correctly. Last-line-only parsing avoids that bias but is fragile to formatting. Grading a schema-validated field is immune to both: the model may reason freely and only the field counts.
 
 **`tool-log`** — stream-json events are filtered to `tool_use` and projected **per tool**, because a path can arrive by more than one route: `Read`/`Write`/`Edit` project their `file_path`; `Bash` projects paths matched out of the command string. Without the Bash projection, `cat docs/decisions/0004-*.md` and `git log -- domain/transaction` are invisible and b01/b03 false-fail on out-of-band reads.
 
