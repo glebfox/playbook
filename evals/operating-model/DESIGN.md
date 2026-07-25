@@ -66,13 +66,17 @@ Five: `baseline`, `A`, `B`, `C`, `ALL`. `ALL` exists to catch interaction — th
 
 Arm-owned fixture artifacts, enumerated — the arm materializer writes these, the fixture does not:
 
-| Artifact | Present in |
-|---|---|
-| The concrete `CLAUDE.md` (instantiating the arm's skeleton exactly) | all arms, differing per arm |
-| `Source:` / `Reconciled:` headers on specs | B, ALL |
-| `Governs:` lines in decision files | B, ALL |
-| Inbound links from living docs to the decisions they cite | B, ALL |
-| Day-1 `ARCHITECTURE.md` status line (in the `day-1` setup) | A, ALL |
+| Artifact | Present in | Written by |
+|---|---|---|
+| The concrete `CLAUDE.md` (instantiating the arm's skeleton exactly) | all arms, differing per arm | `arms/*.patch` |
+| `Source:` / `Reconciled:` headers on specs | B, ALL | `history.sh <dir> 1` |
+| `Governs:` lines in decision files | B, ALL | `history.sh <dir> 1` |
+| Inbound citation of decision 0009 from the transaction spec | B, ALL | `history.sh <dir> 1` |
+| Day-1 `ARCHITECTURE.md` status line | A, ALL | `stage()` |
+
+The `see decision 0004` pointer in `ARCHITECTURE.md` is **not** arm-owned — a convention citing its decision is the fixture's realistic month-3 state and the operating model's own worked example. Decision 0009 is the uncited one, and that absence is the amnesia condition edit 4's inbound-link invariant repairs.
+
+Every row above is checked by `selfCheck`, not just the first. An artifact class that is declared here but written by nothing would otherwise be "absent everywhere" and pass vacuously — and would leave the fixture incoherent: arm B's reading order would send a session looking for a `Governs:` line that exists in no file, which plausibly suppresses the effect B exists to measure.
 
 Everything else in the fixture is constant, including the vendored `docs/operating-model.md` body, which every arm carries (patched per arm).
 
@@ -131,7 +135,7 @@ targets: [A]                 # arms that could plausibly move this case
 predicts: fail-on-baseline   # fail-on-baseline | control
 world: month-3               # month-3 | day-1
 reps: {haiku: 10, opus: 5}   # per model; a model absent here is not run
-caps: {turns: 1}
+caps: {budgetUsd: 0.5, timeoutMs: 120000}
 grade:
   type: destination          # destination | tool-log
   expect: ["ARCHITECTURE.md"]      # list; any member is a pass
@@ -211,8 +215,10 @@ Both model tiers run the routing layer. A weak model is an amplifier: where Opus
 
 Per tier and family: rows are cases, columns are arms, cells are `k/n` plus a delta against baseline. Then per-bundle mean delta, and two call-outs with mechanical thresholds so the no-judge claim holds at the reporting layer too:
 
-- **Control regression** — a control whose pass rate drops by more than 2 reps against baseline, on either tier.
-- **Theoretical finding** — a predicted-fail case whose baseline pass rate is at or above 80% on both tiers. The finding behind it did not reproduce. This is the suite testing the review.
+- **Control regression** — a control whose pass *rate* drops against baseline by more than `2 / max(n_baseline, n_arm)`, on either tier. The threshold is expressed as a rate, not a pass count: `error` verdicts leave the denominator, so counts across arms are not comparable — 5 of 5 against a baseline 10 of 10 would look like a regression, and a collapse from 5 of 5 to 3 of 10 would not.
+- **Theoretical finding** — a predicted-fail case whose baseline pass rate is at or above 80% on **every tier that runs it**. Not "both tiers": behavioral cases run on Opus alone, and requiring two tiers would make them unflaggable. The finding behind such a case did not reproduce. This is the suite testing the review.
+
+Headline bundle deltas average over **predicted-fail cases only**. Controls are flat by construction, so including them pulls every bundle toward zero — one edit working perfectly alongside one flat control would report half the effect. Controls have their own call-out; they are not part of the effect size.
 
 Every run records the resolved model IDs.
 
@@ -223,7 +229,8 @@ Every run records the resolved model IDs.
 - **A null result on bundle C is expected and is not evidence against edits 8 and 9.** They address rare failures; at these rep counts such an effect drowns. Constructing a case tuned to make them fire would measure the case, not the document.
 - **The vendoring half of edit 5 is untestable here** — it is the precondition for observing anything in the document body. Its value has to be argued, not measured.
 - **Edit 10 is neither measured nor guarded.**
-- `b03`'s grader is deliberately conservative: drift noticed by means other than a `git` invocation is scored as a miss. It can under-credit arm B; it cannot over-credit it.
+- `b03`'s grader is deliberately conservative: its predicate matches the Bash **command string** for a `git log` naming the drift path, so drift noticed any other way scores as a miss. Matching a projected path alone would credit `ls domain/transaction` as a drift check and invert this guarantee. It can under-credit arm B; it cannot over-credit it.
+- Read-side predicates use the `*` tool rather than `Read`, so a decision read via `cat` in a Bash call still counts; write-side predicates use `Write|Edit`, because an agent modifying an existing file uses `Edit`. Both are grader conservatism corrections, not measurement choices.
 - No held-out set. It was considered and cut: all 16 cases burn in this run, and a solo maintainer cannot blind himself to cases he wrote. Overfitting is instead bounded by the fact that this batch's nine edits were written and approved before any case existed.
 
 ## Sequence
