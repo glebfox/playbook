@@ -1,10 +1,10 @@
 # Design: eval suite for the operating model
 
-Point-in-time design record. Written 2026-07-25, before any of the reviewed edits landed in `harness/operating-model.md`.
+Point-in-time design record. Written 2026-07-25, before any of the reviewed edits landed in `harness/operating-model.md`. Revised after a fresh-eyes review of this document.
 
 ## Purpose
 
-Measure whether a change to `harness/operating-model.md` actually changes agent behavior, instead of arguing about it. The immediate use is a baseline-then-patched comparison for a batch of nine edits produced by a three-reviewer panel; the suite is built to outlive that batch and take cases from every later change to the document.
+Measure whether a change to `harness/operating-model.md` actually changes agent behavior, instead of arguing about it. The immediate use is a comparison of a batch of nine edits against a frozen baseline; the suite is built to outlive that batch and take cases from every later change to the document.
 
 Two things this exists to answer:
 
@@ -21,9 +21,9 @@ Approved edits, grouped into the bundles that become experiment arms:
 | B — read path | 3, 4, 5a | reconcile markers (`Source:` / `Reconciled:`); reading order in the `CLAUDE.md` skeleton, including the decisions index rule (`ls` on slugs, `Governs:` line, inbound-link invariant); the cut of the skeleton's duplicated routing table, which funds the reading order inside the same per-turn budget |
 | C — adjudication | 8, 9 | spec-vs-guideline asymmetry with a directional default; partially-realized state admitted as fact |
 
-Edit 5 splits by role. Its first half — cutting the skeleton's duplicated routing table — is an arm variable in bundle B. Its second half — vendoring the operating model into the project as `docs/operating-model.md` and pointing the map at it — is **a fixture constant in every arm, baseline included**, for the reason given under *Fixture* below: it gates the observability of the other arms, so it cannot also be one of the things being varied.
+Edit 5 splits by role. Its first half (5a), cutting the skeleton's duplicated routing table, is an arm variable in bundle B. Its second half (5b), vendoring the operating model into the project as `docs/operating-model.md` and pointing the map at it, is **a fixture constant in every arm, baseline included** — it gates the observability of every body-only edit, so it cannot also be one of the things being varied.
 
-Parked, not measured: mirrored `docs/tests/` removal (6), flat-specs default (7), `abandoned/` state (10). Controls guard them against regression.
+Parked, not measured: mirrored `docs/tests/` removal (6), flat-specs default (7), `abandoned/` state (10). Edits 6 and 7 are guarded against regression by controls r10 and r12. **Edit 10 has no guard** — nothing in this suite exercises the `abandoned/` state, and the suite is silent about it rather than protective.
 
 ## Layout
 
@@ -31,13 +31,13 @@ Parked, not measured: mirrored `docs/tests/` removal (6), flat-specs default (7)
 evals/
   README.md                    # what suites exist, how to run one
   runner/
-    run.mjs                    # takes a suite path; artifact-agnostic
+    run.mjs                    # parameterized by a suite path
     grade.mjs                  # + self-check mode against golden/
   operating-model/
     DESIGN.md                  # this file
     README.md                  # living: how to run, how to read results, limits
     arms/
-      01-write-paths.patch
+      01-write-paths.patch     # document hunks + fixture instantiation
       02-read-path.patch
       03-adjudication.patch
     fixture/
@@ -51,16 +51,54 @@ evals/
       <run-id>/                # raw JSONL + verdicts + tally
 ```
 
-`evals/` sits at the repository root, not under `harness/`, so suites for documents from other topic directories have a home. The runner is shared because copying it per suite is the duplication this repository argues against; it is parameterized by a suite path and a fixed case schema, and nothing more. **The case schema is the interface** between suite and runner.
+`evals/` sits at the repository root, not under `harness/`, so suites for documents from other topic directories have a home. The runner is shared because copying it per suite is the duplication this repository argues against. It is parameterized by a suite path and reads a fixed case schema — nothing more. No abstraction for hypothetical suite types. **The case schema is the interface** between suite and runner.
 
 ## Arms
 
-Five, not four: `baseline`, `A`, `B`, `C`, `ALL`. `ALL` exists to catch interaction — the reading-order edit promotes `ARCHITECTURE.md` to always-load, which pays off only if the write-path edit also keeps that file current. Separate arms would hide that; `ALL` shows it.
+Five: `baseline`, `A`, `B`, `C`, `ALL`. `ALL` exists to catch interaction — the reading-order edit promotes `ARCHITECTURE.md` to always-load, which pays off only if the write-path edit also keeps that file current. Separate arms would hide that; `ALL` shows it.
 
-An arm is materialized as `git show <baseline-sha>:harness/operating-model.md` with the bundle's patches applied. Two consequences, both deliberate:
+**An arm is a pair: patches to the vendored document, *plus* the fixture files that instantiate the document's prescriptions.** This is the definition the rest of the design depends on, and getting it wrong is the failure mode most likely to produce confident meaningless numbers. The `CLAUDE.md` skeleton is a *section of* the document under test; an edit to it is inert unless the fixture's concrete `CLAUDE.md` carries the corresponding change. Otherwise the only channel is "the agent reads the example skeleton inside the vendored document and adopts it as instructions to itself", which is too weak to measure and would make bundle B read as ineffective when it was merely undelivered.
+
+Arm-owned fixture artifacts, enumerated — the arm materializer writes these, the fixture does not:
+
+| Artifact | Present in |
+|---|---|
+| The concrete `CLAUDE.md` (instantiating the arm's skeleton exactly) | all arms, differing per arm |
+| `Source:` / `Reconciled:` headers on specs | B, ALL |
+| `Governs:` lines in decision files | B, ALL |
+| Inbound links from living docs to the decisions they cite | B, ALL |
+| Day-1 `ARCHITECTURE.md` status line (in the `day-1` setup) | A, ALL |
+
+Everything else in the fixture is constant, including the vendored `docs/operating-model.md` body, which every arm carries (patched per arm).
+
+The per-arm `CLAUDE.md` diff lives inside `arms/*.patch` alongside the document hunks, so one reviewable file holds everything an arm changes.
+
+Document hunks are materialized as `git show <baseline-sha>:harness/operating-model.md` with the bundle's patches applied. Two consequences, both deliberate:
 
 - **One source of truth for the document.** Four near-identical 130-line copies would need every future edit applied four times, and the drift would silently invalidate arms.
-- **The baseline is pinned to a commit, not to "the current file".** Once the edits land, "current" stops being the baseline. Pinning by sha keeps the baseline reproducible permanently, and lets any later run compare `HEAD` against a named historical baseline. Without this the suite is single-use by construction.
+- **The baseline is pinned to a commit, not to "the current file".** Once the edits land, "current" stops being the baseline. Pinning by sha keeps the baseline reproducible permanently, and lets any later run compare `HEAD` against a named historical baseline. Without this the suite is single-use by construction. It also means **the measurement does not depend on when the edits land** — see *Sequence*.
+
+**`ALL` is composed, not authored.** Bundle A adds lines to the skeleton's workflow and hygiene regions; bundle B inserts the reading order and *deletes* the duplicated routing table in the same neighbourhood. Overlapping hunks either fail to apply or, worse, apply cleanly while semantically dropping an A edit that landed inside the region 5a removes — which would make the interaction reading garbage. So: fix the application order (A, then B, then C), materialize `ALL` once, and hand-check a nine-edit presence checklist against its diff before calibration.
+
+**Materialization self-check.** Before every case the runner grep-asserts that arm-owned artifacts are present where they should be and absent where they should not: no reconcile markers, `Governs:` lines, or inbound links in `baseline`, `A`, or `C`. A marker leaking into the baseline is a failure that reads as a null result, which is the one class of bug this suite cannot detect from its own output.
+
+## Delivery
+
+How each arm's text reaches the model under test, stated because every number depends on it and nothing else in the design implies it.
+
+**Routing cases: one turn, pre-assembled context, no tool use.** The context is assembled by the runner and is identical across arms except for arm-owned content:
+
+1. the fixture's concrete `CLAUDE.md` (arm-owned)
+2. `docs/operating-model.md` (arm-patched)
+3. the output of `ls -R` over the fixture, so the file tree is visible without exploration
+4. both domain specs, `docs/specs/domains/{transaction,budget}.md` (arm-owned headers)
+5. the case question and its output contract
+
+Item 3 is what makes r07 and r12 answerable at all — both require knowing which spec paths already exist. Item 4 is what makes r04's contagion bait live: without `budget.md` in view there is no second unit for a false generalization to reach. Pre-assembly rather than exploration is chosen so that arms differ only in what we inject, not in what the model happened to look at.
+
+**Behavioral cases: multi-turn, full tool access, agent explores the fixture itself.** Realism is the point here — the question is what a session actually reads, and pre-assembling the context would answer it by fiat.
+
+**Turn and time caps are stated per case and cap-hits score `error`, not `fail`.** Treated arms prescribe *more reading before writing*, so under a fixed cap they are systematically likelier to be truncated before the graded action occurs. Scoring a truncated run as `fail` would be censoring correlated with the treatment — a manufactured anti-edit effect, in the layer where N=3 makes one censored rep a 33-point swing. Calibration verifies headroom: if any arm's runs land near the cap, the cap is raised before the real run.
 
 ## Fixture
 
@@ -68,19 +106,13 @@ An arm is materialized as `git show <baseline-sha>:harness/operating-model.md` w
 
 Contents: `CLAUDE.md`, `ARCHITECTURE.md`, `docs/vision.md`, `docs/roadmap.md`, `docs/conventions.md`, `docs/guidelines/{testing,nextjs-runtime}.md`, `docs/decisions/{0004-money-integer-cents,0009-import-key}.md`, `docs/specs/domains/{transaction,budget}.md`, `docs/tests/domains/transaction.md`, one increment under `docs/increments/completed/`. Code skeleton: `app/`, `domain/transaction/`, `lib/money.ts`, `db/schema.ts` — signatures, no implementations. `budget.md` exists specifically so the guideline-contagion case has a second unit where zero is a legitimate limit; `nextjs-runtime.md` exists specifically for the design-blindness case.
 
-**The operating model is vendored into the fixture as `docs/operating-model.md`, and the map points at it.** This is load-bearing, not cosmetic. Most of the adjudication wording — the spec-vs-guideline asymmetry, built-vs-intended, the significance bar — lives in the model body, not in the `CLAUDE.md` skeleton. A fixture carrying only the skeleton makes arms A and C **unobservable**: the run would return zeros and we would conclude the edits are worthless.
-
-Vendoring is the second half of approved edit 5, so this is consistent with the batch rather than presupposing an unapproved change. But it must be a **constant across all arms, baseline included**, not a variable in bundle B. If it varied, an arm without vendoring could not exhibit any body-only edit: bundle C is entirely body text (the L50 asymmetry, the L11/L38 partial-state clause), and the body halves of edits 1, 2 and 11 — bootstrap step 2, L98, L105 — are equally invisible. Those three are observable at all only because each also has a component in the skeleton.
-
-The consequence is a self-referential blind spot worth naming: **the suite cannot measure the vendoring half of edit 5, because vendoring is the precondition for measuring anything in the document body.** Its value has to be argued, not tested. What the suite does measure is the model *as read*, so results transfer only to projects that vendor it — which, after edit 5 lands, is the prescribed setup.
+The operating model is vendored as `docs/operating-model.md` in every arm (edit 5b). The self-referential consequence is recorded under *Limits*.
 
 Three fixture decisions:
 
 - **Files plus `history.sh`, not a nested git repository.** The runner copies the files into a temp directory and replays a scripted history. No submodule handling, and the history is part of the test design rather than decoration — specific commits must land on `domain/transaction/**` *after* the sha recorded in that unit's spec, or the drift case has nothing to detect.
 - **`Reconciled: <sha>` is written by the script after the commit, not stored in the file.** Storing it would require deterministic shas, hence pinned `GIT_AUTHOR_DATE` and author, which is brittle. Writing the real sha post-commit is correct by construction.
-- **One base state plus a declarative `setup` per case.** Cases need different worlds — the drift case needs commits past the spec's sha, the bootstrap case needs a day-1 `ARCHITECTURE.md`. Five fixtures would diverge; one base plus per-case mutation does not.
-
-**Known coupling.** Reconcile markers exist only in arms B and `ALL`. The baseline's specs must not carry them, or the baseline measures a half-patched state. So marker injection belongs to arm materialization, not to the fixture. This is the one place the two dimensions are entangled and the plan must separate them explicitly — a marker leaking into the baseline is a failure that reads as a null result.
+- **Two named worlds, each built by whitelist, not by mutation.** `month-3` is the state above. `day-1` is not a small edit to it — it is a near-total teardown, so it is specified as a whitelist: keep `CLAUDE.md`, `docs/vision.md`, `docs/conventions.md`, `docs/roadmap.md` and the vendored model; `ARCHITECTURE.md` holds only what its arm prescribes; nothing else exists. Building `day-1` by subtraction would leave month-3 residue and silently invalidate r05.
 
 ## Case schema
 
@@ -92,26 +124,34 @@ family: routing              # routing | behavioral
 finding: F2/S3               # which panel finding this encodes
 targets: [A]                 # arms that could plausibly move this case
 predicts: fail-on-baseline   # fail-on-baseline | control
-setup: [month-3]             # fixture mutations
-models: [opus, haiku]
-reps: 10
+world: month-3               # month-3 | day-1
+reps: {haiku: 10, opus: 5}   # per model; a model absent here is not run
+caps: {turns: 1}
 grade:
   type: destination          # destination | tool-log
-  expect: ARCHITECTURE.md
+  expect: ["ARCHITECTURE.md"]      # list; any member is a pass
   forbid: ["docs/specs/**", "docs/guidelines/**"]
 ```
 
-`targets` is what makes the matrix sparse. A case runs against `baseline`, `ALL`, and every arm named in `targets` — for predicted-fail and control cases alike. A control names an arm when that arm could plausibly *break* it: `r03` is handled correctly by the baseline, but edit 8's directional default ("when unsure, leave it in the spec") could push a genuine framework mechanic into a spec, so `r03` runs against `C` as a regression guard. A control with no `targets` runs against two arms only.
+`expect` is a list of globs and any member passes — several cases have more than one correct home (`r08`) or name a directory whose concrete file the model may legitimately give (`r03`, `r09`). `reps` is per model because the tiers get different rep counts.
+
+`targets` is what makes the matrix sparse. A case runs against `baseline`, `ALL`, and every arm named in `targets` — for predicted-fail and control cases alike. A control names an arm when that arm could plausibly *break* it: `r03` is handled correctly by the baseline, but edit 8's directional default ("when unsure, leave it in the spec") could push a genuine framework mechanic into a spec. Likewise `r09`, `r11` and `r12` name `B`, because edit 5a **deletes the skeleton's routing table** — the single most routing-relevant removal in the batch. Without those, a regression from 5a would surface only in `ALL`, unattributable, while bundle B's delta was measured by three behavioral cases at N=3 and read clean.
 
 ## Grading
 
-**No LLM judge in v1.** A judge is the largest variance source and the shortest path to an eval that measures itself. Two mechanical types instead:
+**No LLM judge, at run time or reporting time.** A judge is the largest variance source and the shortest path to an eval that measures itself. Two mechanical types:
 
-**`destination`** — the case prompt ends with a hard output contract: reply with exactly one line, the repository-relative path of the single file this fact belongs in, or `NONE`. The grader takes the last non-empty line and compares. `forbid` is then checked **against the whole answer**, not only that line — otherwise "the transaction spec, and note the validation pattern in guidelines" passes, and that answer is precisely the error the case exists to catch.
+**`destination`** — the case prompt ends with a hard output contract: reply with exactly one line, the repository-relative path of the file this fact belongs in, or `NONE`. The grader takes the last non-empty line, matches it against `expect`, then checks `forbid` **against that line only**.
 
-**`tool-log`** — the stream-json events are filtered to `tool_use`, projected to `(name, path)`, and a predicate is asserted. The predicate language is two constructions and no more: `saw(pattern)` and `saw(a) before saw(b)`. Order is required — "read the decision *before* the first write" is not expressible without it.
+Whole-answer `forbid` was considered and rejected: it is biased *against* the treatment. A model that reasons — "several units share this, which tempts a guideline, but the subject is the unit, so: the spec" — names a forbidden path while rejecting it, and arm C's asymmetry text makes exactly that articulation *more* likely. The hedge the rule was meant to catch ("the transaction spec, and note the pattern in guidelines") lands on the answer line itself, so last-line-only still catches it. Calibration hand-audits multi-line answers for hedges above the answer line; only if they actually appear does the rule escalate.
 
-Verdicts are ternary: `pass | fail | error`. `error` covers CLI crashes and timeouts; it is excluded from the denominator and reported separately. Counting an infrastructure failure as `fail` would manufacture an effect in favour of whichever arm got luckier.
+**`tool-log`** — stream-json events are filtered to `tool_use` and projected **per tool**, because a path can arrive by more than one route: `Read`/`Write`/`Edit` project their `file_path`; `Bash` projects paths matched out of the command string. Without the Bash projection, `cat docs/decisions/0004-*.md` and `git log -- domain/transaction` are invisible and b01/b03 false-fail on out-of-band reads.
+
+The predicate language is two constructions: `saw(pattern)` and `saw(a) before saw(b)`, where **`before` compares first occurrences**. The looser exists-before-exists reading would pass a run that writes, reads the decision, then writes again — which is the behavior b01 exists to fail.
+
+`b03`'s predicate carries **a fixed path list** (`domain/transaction/**`), not one parsed from the spec's `Source:` header. That header exists only in arms B and `ALL`; parsing it per-arm would make the baseline fail vacuously and fake an effect for B.
+
+Verdicts are ternary: `pass | fail | error`. `error` covers CLI crashes, timeouts, and cap-hits; it is excluded from the denominator and reported separately. Counting an infrastructure failure as `fail` would manufacture an effect in favour of whichever arm got luckier.
 
 **Calibration.** The first run is N=1 across all combinations, with every verdict reviewed by hand. Those verdicts freeze into `results/golden/`. `grade.mjs` gains a self-check mode that re-grades the golden logs and must reproduce the frozen verdicts. This is the terminus of the "tests for the tests" regress: a golden set, not another layer of tests.
 
@@ -119,65 +159,78 @@ Verdicts are ternary: `pass | fail | error`. `error` covers CLI crashes and time
 
 ### Routing — 12 cases, "here is fact F, name its single home"
 
-| id | Fact | Expected | Arm | Prediction |
+| id | Fact | Expected | Arms | Prediction |
 |---|---|---|---|---|
 | r01 | Money rounds half-up at the presentation boundary; `lib/money.ts` owns no spec | `ARCHITECTURE.md` | A | fail on baseline — the flagship, practitioner's S3 |
 | r02 | "Mutations go through Server Actions" | `ARCHITECTURE.md` | A | fail on baseline |
-| r03 | Next.js node-vs-edge runtime gotcha | `docs/guidelines/` | C | control |
+| r03 | Next.js node-vs-edge runtime gotcha | `docs/guidelines/**` | C | control |
 | r04 | "Transactions reject zero amounts" | `transaction` spec; `guidelines/**` forbidden | C | fail on baseline — the asymmetry case |
-| r05 | Intended stack, day 1 (`setup: day-1`) | `docs/vision.md` | A | fail on baseline |
+| r05 | Intended stack, `world: day-1` | `docs/vision.md` | A | fail on baseline |
 | r06 | Half of `services/` moved to `adapters/`; "new work goes in adapters/" | `ARCHITECTURE.md` as a convention | C | fail on baseline — L11 forbids it |
 | r07 | `importKey` unique per account when non-null | the enforcing unit's spec | — | control |
-| r08 | Multi-currency agreed, code still in cents | `vision.md` / `roadmap.md` | A | fail on baseline |
-| r09 | Why integer cents were chosen | `docs/decisions/` | — | control |
+| r08 | Multi-currency agreed, code still in cents | `vision.md` or `roadmap.md` | A | fail on baseline |
+| r09 | Why integer cents were chosen | `docs/decisions/**` | B | control |
 | r10 | "Re-categorization idempotence not tested" | the unit's test doc | — | control (edit 6 parked) |
-| r11 | Commit message format | `docs/conventions.md` | — | control |
-| r12 | A behavior of a unit that already has a spec under a different axis | the existing spec file, not a new one | — | control (edit 7 parked) |
+| r11 | Commit message format | `docs/conventions.md` | B | control |
+| r12 | A behavior of a unit that already has a spec under a different axis | the existing spec file, not a new one | B | control (edit 7 parked) |
 
 Six controls, six predicted-fail. Controls are not symmetry — without them "the edit helped" cannot be distinguished from "the edit broke something that worked".
 
+`r06`'s baseline column reads as *compliance with the old rule*, not as error: the baseline document mandates a different answer, and that is the delta mechanism rather than a defect. The report must label it that way.
+
 ### Behavioral — 4 cases, graded from the tool log
 
-| id | Task | Log predicate | Arm |
+| id | Task | Log predicate | Arms |
 |---|---|---|---|
 | b01 | "Move money storage from integer cents to NUMERIC" | `Read(docs/decisions/0004-*)` before first `Write(**)` | B |
 | b02 | "Design the CSV import feature and write the design to `docs/increments/active/<slug>/design.md`" | `Read(docs/guidelines/nextjs-runtime.md)` before `Write(**/design.md)` | B |
-| b03 | "Implement X in transaction", fixture has commits past the spec's `Reconciled` sha | `git log` or `git diff` naming a path from the spec's `Source:` line | B |
+| b03 | "Implement X in transaction"; fixture has commits past the spec's `Reconciled` sha | `git log` or `git diff` naming a path under `domain/transaction/**` | B |
 | b04 | "Here is a completed increment's diff; consolidate it" | `Write` or `Edit` on `ARCHITECTURE.md` | A |
 
 `b01` encodes a real incident that cost a five-hour limit. `b03` is the one case where a **negative result is the most valuable outcome**: failing on arm B as well as baseline would mean reconcile markers get written and never read, settling the panel's first open disagreement against edit 3 — cheaply, before the mechanism ships.
 
+`b04`'s increment diff must contain at least one change whose only legal home is `ARCHITECTURE.md` — a layout or convention change. A purely unit-behavioral diff would make arm A's *correct* consolidation (specs only) score fail.
+
 ## Run size
 
-Sparse matrix, routing: 6 predicted-fail × 3 arms + 1 targeted control × 3 arms + 5 untargeted controls × 2 arms = **31 case-arm combinations**.
+Sparse matrix, routing: 10 cases at 3 arms (`r01`–`r06`, `r08`, `r09`, `r11`, `r12`) + 2 cases at 2 arms (`r07`, `r10`) = **34 case-arm combinations**.
 
-- Routing: 31 × (10 Haiku reps + 5 Opus reps) = **465 runs**, one turn each on roughly 7k of context. Near-free on Haiku; about 155 Opus runs, order of 1.1M input tokens. The asymmetric rep count follows from the model choice — signal is cleaner on the weaker model, so N is larger there.
+- Routing: 34 × (10 Haiku reps + 5 Opus reps) = **510 runs**, one turn each on roughly 7k of context. Near-free on Haiku; 170 Opus runs, order of 1.2M input tokens.
 - Behavioral: 4 cases × 3 arms × 3 reps, Opus only = **36 runs**, multi-turn. This is the suite's cost centre.
 
 Both model tiers run the routing layer. A weak model is an amplifier: where Opus compensates for a gap in the document by reasoning around it, Haiku shows the edit's clean effect. Opus alone risks a false negative on every edit whose whole job is to stop a model from having to guess.
 
 ## Reporting
 
-One table per family: rows are cases, columns are arms, cells are `k/n` plus a delta against baseline. Then per-bundle mean delta, and two explicit call-outs:
+**Tables are per model tier, never pooled.** Pooling would weight Haiku 2:1 and would contradict the reason both tiers are run — they answer different questions.
 
-- **Controls whose rate dropped** — regression introduced by the edits.
-- **Predicted-fail cases that passed on baseline** — the finding behind them was theoretical. This is the suite testing the review.
+Per tier and family: rows are cases, columns are arms, cells are `k/n` plus a delta against baseline. Then per-bundle mean delta, and two call-outs with mechanical thresholds so the no-judge claim holds at the reporting layer too:
+
+- **Control regression** — a control whose pass rate drops by more than 2 reps against baseline, on either tier.
+- **Theoretical finding** — a predicted-fail case whose baseline pass rate is at or above 80% on both tiers. The finding behind it did not reproduce. This is the suite testing the review.
+
+Every run records the resolved model IDs.
 
 ## Limits, stated up front
 
-- Confounded with model version, prompt phrasing, and fixture realism. Results describe this fixture and these two model tiers.
+- Confounded with prompt phrasing and fixture realism. Results describe this fixture and these two model tiers.
 - Behavioral N=3 surfaces only large effects.
 - **A null result on bundle C is expected and is not evidence against edits 8 and 9.** They address rare failures; at these rep counts such an effect drowns. Constructing a case tuned to make them fire would measure the case, not the document.
+- **The vendoring half of edit 5 is untestable here** — it is the precondition for observing anything in the document body. Its value has to be argued, not measured.
+- **Edit 10 is neither measured nor guarded.**
 - `b03`'s grader is deliberately conservative: drift noticed by means other than a `git` invocation is scored as a miss. It can under-credit arm B; it cannot over-credit it.
-- **The vendoring half of edit 5 is untestable here** — it is the suite's own precondition. See *Fixture*.
-- Overfitting: a held-out third of cases is designated now, but the discipline starts with the *next* batch. This batch's nine edits are already written and approved, so there is nothing to tune against them.
+- No held-out set. It was considered and cut: all 16 cases burn in this run, and a solo maintainer cannot blind himself to cases he wrote. Overfitting is instead bounded by the fact that this batch's nine edits were written and approved before any case existed.
 
 ## Sequence
 
-1. Build the fixture and `history.sh`; verify the shaped drift exists (`git log <sha>..HEAD -- <paths>` returns commits).
+The sha-pinned baseline makes measurement independent of when the edits land, so **all five arms run together**. Running the baseline first and the arms after landing the edits would put model-snapshot drift straight into the treatment delta and open a window to tune cases between the two runs.
+
+1. Build the fixture and `history.sh`; verify the shaped drift exists (`git log <sha>..HEAD -- domain/transaction/**` returns commits).
 2. Write the 16 cases with grading blocks.
-3. Build the runner and grader.
-4. Calibration run, N=1, all combinations, every verdict reviewed by hand; freeze `results/golden/`.
-5. Baseline run. **Commit the numbers.**
-6. Apply the nine edits to `harness/operating-model.md`.
-7. Full run across all arms. Diff the rates.
+3. Write the three arm patches, including their `CLAUDE.md` instantiation; materialize `ALL` and hand-check the nine-edit presence checklist.
+4. Build the runner and grader, including the materialization self-check.
+5. Calibration run: N=1 over all 46 case-arm combinations (34 routing + 12 behavioral), on each tier that runs them — 80 runs. Every verdict reviewed by hand; confirm cap headroom; freeze `results/golden/`.
+6. Full run, all five arms interleaved. Commit the numbers.
+7. Apply the nine edits to `harness/operating-model.md`. Orthogonal to the measurement, and gated on it only by choice.
+
+Steps 1–3 are verifiable by inspection; steps 4–6 only by running. The implementation plan splits there.
