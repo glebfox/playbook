@@ -1836,7 +1836,14 @@ export function grade(parsed, caseObj) {
 - [ ] **Step 4: Run the test to verify it passes**
 
 Run: `node --test evals/runner/grade.test.mjs`
-Expected: 14 passing tests. Absolute-path normalization happens in `invoke()`, where `dir` is known — `matches`'s prefix-stripping clause is only a belt for relative paths embedded in Bash commands, and it cannot help root-level files like `ARCHITECTURE.md`, which have no `docs/`-style marker to anchor on.
+Expected: 17 passing tests — the snippet above holds 13, and four more were added because the grader is the layer where a silent bug turns into a clean-looking null result:
+
+- **The four behavioral predicates, read from the case files**, evaluated against logs of the shape a real session produces, plus each one's near-miss. `validateCase` only checks their *form*; until this test ran, nothing had ever evaluated them, and a predicate that cannot match its own case scores every arm `fail`.
+- **`b03`'s four realistic spellings**, all accepted, against `git diff`, `git add`, `git commit` and `cat`, all rejected — the conservatism the design promises, asserted rather than asserted-about.
+- **Every routing case's `expect` matches a path that exists in its own world.** A stale or mistyped glob matches nothing, so every arm fails and the result reads as flat rather than broken. Nothing else in the suite checks this.
+- **`{"destination":"NONE"}`** — the output contract's escape hatch — grades `fail`, not `error`: the fact has a home, so answering NONE is a wrong answer, not a broken run.
+
+Absolute-path normalization happens in `invoke()`, where `dir` is known — `matches`'s prefix-stripping clause is only a belt for relative paths embedded in Bash commands, and it cannot help root-level files like `ARCHITECTURE.md`, which have no `docs/`-style marker to anchor on.
 
 - [ ] **Step 5: Add the self-check mode**
 
