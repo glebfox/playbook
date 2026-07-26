@@ -88,7 +88,7 @@ Map of this repository's knowledge base. A table of contents, not an encyclopedi
 
 ## Documentation Hygiene
 
-- Keep this file a thin map. Architectural facts → ARCHITECTURE.md; code/commit conventions → docs/conventions.md; product intent → docs/vision.md; unit state → docs/specs/<axis>/; unit test coverage → docs/tests/<axis>/; cross-cutting framework/platform mechanics (incl. the test harness) → docs/guidelines/; decision rationale → docs/decisions/. Don't duplicate here.
+- Keep this file a thin map: every fact category has a home in the map above. Don't duplicate here.
 - A spec says *what a unit is*; the framework/platform mechanics behind it (the *how*) live in docs/guidelines/, not in a spec. Unit-fact vs framework-mechanic, not unique-vs-shared. The same split applies to tests: per-unit coverage → docs/tests/<axis>/; the test harness & strategy → docs/guidelines/. A test doc lists gaps too (not-yet-tested behaviors, with a reason), so it doubles as a TODO.
 - After an increment touches a unit, update its durable spec and its test-coverage doc so both reflect reality — or ARCHITECTURE.md, when the changed behavior is a project-wide convention that no single unit owns.
 - Facts and their why live apart: a living doc links to the docs/decisions/ entry for rationale, never restates it. A decision file is never edited to match the present — supersede it with a new one. A decision is never a source for current state — that is what the living docs are for.
