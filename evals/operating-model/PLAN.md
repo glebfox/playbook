@@ -1042,6 +1042,8 @@ Re-categorizing a transaction twice in a row should end up in the same state as 
 
 Forbidden words: *coverage, gap, matrix, test doc, TODO*.
 
+**Watch this one at calibration.** It is mildly braided: the prompt opens with a behavior but its payload is the *coverage status*, so a reader could route it to the spec. It is defensible as written — only the test doc holds the composite fact, gaps-with-reasons are first-class there, and the spec already documents categorization idempotence as behavior, which pushes a careful reader toward "the new information here is that nobody checks it". But if strong models answer with the spec during the N=1 calibration run, reweight the body to lead with the coverage status rather than the behavior, and re-freeze. Do not discover this at N=10.
+
 ```markdown
 ---
 id: r11-commit-format
