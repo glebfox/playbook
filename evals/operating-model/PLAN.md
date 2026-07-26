@@ -1961,6 +1961,16 @@ for (const c of cases) {
 console.log(`\n${done} runs → ${ledger}`)
 ```
 
+Three guards were added to the code above, each preventing a failure whose cost is measured in whole runs rather than in one:
+
+1. **A `claude --version` preflight.** Without it, a missing or broken CLI yields a full matrix of `error` verdicts that looks like data — `isBroken` catches each run individually, so nothing ever crashes. One call up front turns 546 wasted invocations into one line.
+2. **Abort on the first auth error.** An auth failure is never a legitimate verdict and does not heal on the next invocation. The abort names `verify-cli.sh` as the fix.
+3. **`--resume`, off by default.** The full run is 546 invocations with the cost in the behavioral layer; a crash at run 500 must not mean re-spending all of it. It skips combinations the run-id's ledger already holds.
+
+And a fourth file: `evals/runner/run.test.mjs` with a stub `claude` in `evals/runner/testdata/`, which drives the whole pipeline — staging, self-check, prompt assembly, invocation, grading, ledger, stream files — with no auth and no tokens. It is the token-free counterpart to step 2, not a replacement for it: a stub cannot tell us how the real CLI behaves, which is exactly what step 2 and step 5b exist to find out. What it does cover is everything downstream of the CLI's output, including two things nothing else reaches: that absolute `file_path`s get stripped back to repository-relative paths (b04's predicate fails otherwise, and on macOS the staged directory and the child's cwd differ by the `/var` → `/private/var` symlink), and that the auth abort fires after exactly one invocation.
+
+Writing that test surfaced a live trap worth recording: PATH resolution needs a file named exactly `claude`, so a stub named anything else is silently ignored and the tests quietly exercise the real CLI instead. The failure looks like a bug in the driver.
+
 - [ ] **Step 2: Dry-run one routing case at N=1 to shake out plumbing**
 
 ```bash
@@ -2005,6 +2015,8 @@ Expected: `OK grader reproduces 80 frozen verdicts`. From now on, any grader cha
 `evals/README.md`: what a suite is, the directory convention, and `node evals/runner/run.mjs --suite <dir> --run-id <id>`.
 
 `evals/operating-model/README.md`: how to run, how to read the report, and — copied verbatim from `DESIGN.md`'s *Limits* section — every limit, plus which isolation mode the frozen golden set was produced in.
+
+Both were written **before** steps 2–5, since everything except the measured numbers is already knowable. Each carries a `Status` section saying plainly that nothing has been run against a model, which two terminal steps come first, and that `results/golden/` is empty so the grader is currently unprotected against its own future edits. The isolation mode is the one field left to fill in, because it is not knowable until `verify-cli.sh` runs. This is the discipline the document under test prescribes: record what is, say what is absent, and do not backfill a placeholder.
 
 - [ ] **Step 7: Commit**
 

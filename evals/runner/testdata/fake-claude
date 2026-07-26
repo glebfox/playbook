@@ -1,0 +1,38 @@
+#!/usr/bin/env node
+// A stub `claude` for run.test.mjs: emits a plausible stream-json transcript so the driver can be
+// exercised end to end without auth or tokens. It is NOT a mock of model behavior — it exists to
+// prove the plumbing (staging, self-check, prompt assembly, grading, ledger, stream files) carries
+// a run from end to end. Behavior is chosen by env vars, so one stub covers every case shape.
+//
+//   FAKE_MODE=routing (default) | behavioral | auth
+//   FAKE_DEST=<path>            the destination a routing answer reports
+//   FAKE_TOOLS=<json array>     tool calls to emit; `$CWD/` in a file_path expands to the real cwd,
+//                               which is how the absolute-path stripping in invoke() gets tested
+const args = process.argv.slice(2)
+if (args.includes('--version')) { console.log('0.0.0-fake (evals/runner/testdata/fake-claude)'); process.exit(0) }
+
+const emit = o => process.stdout.write(JSON.stringify(o) + '\n')
+const mode = process.env.FAKE_MODE ?? 'routing'
+
+emit({ type: 'system', subtype: 'init', model: 'claude-fake-1', cwd: process.cwd() })
+
+if (mode === 'auth') {
+  emit({ type: 'assistant', message: { content: [{ type: 'text', text: 'Not logged in · Please run /login' }] } })
+  emit({ type: 'result', subtype: 'success', num_turns: 1, total_cost_usd: 0 })
+  process.exit(0)
+}
+
+if (mode === 'behavioral') {
+  const calls = JSON.parse(process.env.FAKE_TOOLS ?? '[]')
+  for (const c of calls) {
+    const input = { ...c.input }
+    if (typeof input.file_path === 'string') input.file_path = input.file_path.replace('$CWD/', process.cwd() + '/')
+    emit({ type: 'assistant', message: { content: [{ type: 'tool_use', name: c.name, input }] } })
+  }
+  emit({ type: 'assistant', message: { content: [{ type: 'text', text: 'done' }] } })
+  emit({ type: 'result', subtype: 'success', num_turns: calls.length + 1, total_cost_usd: 0.4 })
+  process.exit(0)
+}
+
+emit({ type: 'assistant', message: { content: [{ type: 'text', text: JSON.stringify({ destination: process.env.FAKE_DEST ?? 'ARCHITECTURE.md' }) }] } })
+emit({ type: 'result', subtype: 'success', num_turns: 2, total_cost_usd: 0.01 })
