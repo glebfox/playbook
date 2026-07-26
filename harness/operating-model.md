@@ -74,6 +74,13 @@ Map of this repository's knowledge base. A table of contents, not an encyclopedi
 - **docs/tests/<axis>/*.md** — per-unit test-coverage matrix (automated vs live), mirroring the specs.
 - **docs/increments/** — per-increment directory with `design.md` + `plan.md` (`active/` → `completed/`).
 
+## Reading order
+
+- **Always in context:** this map, and `ARCHITECTURE.md` — its conventions bind every change.
+- **When starting on a unit:** that unit's spec, plus a scan of `docs/decisions/` filenames for anything binding the area — the filenames *are* the index; there is no separate registry to maintain.
+- **When designing:** `docs/vision.md` and the relevant `docs/guidelines/` **before** the design is fixed — not at implementation time, or the design will be built against constraints it never saw.
+- **Never:** anything under `docs/increments/completed/`.
+
 ## Workflow
 
 - Each increment runs its own cycle: brainstorm → design (`docs/increments/active/<slug>/design.md`) → plan (`plan.md` next to it) → execute → consolidate durable knowledge into `docs/specs/<axis>/*.md`, the test-coverage matrix into `docs/tests/<axis>/*.md`, any new architectural convention, layout change, or command into `ARCHITECTURE.md`, reusable mechanics into `docs/guidelines/`, significant decisions into `docs/decisions/` → move the increment's directory to `completed/`.
