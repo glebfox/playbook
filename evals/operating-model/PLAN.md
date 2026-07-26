@@ -925,10 +925,10 @@ grade:
   expect: ["docs/specs/domains/transaction.md"]
   forbid: ["docs/guidelines/**", "ARCHITECTURE.md"]
 ---
-We settled that a transaction cannot be dated in the future. `rejectFutureDate` in `domain/transaction/rules.ts` throws before anything reaches the database. It is the same shape of boundary check we write for other user input around the app.
+We settled that a transaction cannot be dated in the future. `rejectFutureDate` in `domain/transaction/rules.ts` returns a `Result` with a `FUTURE_DATE` error, so nothing reaches the database. It is the same shape of boundary check we write for other user input around the app.
 ```
 
-Forbidden words: *guideline, spec, unit, convention*. The bait is the closing sentence: the check's *shape* is shared, so a guideline is tempting — but the subject is the transaction unit, and budgets legitimately start in the future, so a guideline would hand them a rule that is false for them.
+Forbidden words: *guideline, spec, unit, convention*. The guard returns a `Result` rather than throwing, because the fixture's own error rule is discriminated result unions and never thrown exceptions (`ARCHITECTURE.md`'s conventions block, decision 0008, and the transaction spec's "Never throws"). A prompt that contradicts the fixture invites a session to argue with the premise instead of routing the fact. The bait is the closing sentence: the check's *shape* is shared, so a guideline is tempting — but the subject is the transaction unit, and budgets legitimately start in the future, so a guideline would hand them a rule that is false for them.
 
 ```markdown
 ---

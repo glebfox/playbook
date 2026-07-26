@@ -16,4 +16,4 @@ grade:
 # but the subject is the transaction unit, and budgets legitimately start in the future, so a
 # guideline would hand them a rule that is false for them.
 ---
-We settled that a transaction cannot be dated in the future. `rejectFutureDate` in `domain/transaction/rules.ts` throws before anything reaches the database. It is the same shape of boundary check we write for other user input around the app.
+We settled that a transaction cannot be dated in the future. `rejectFutureDate` in `domain/transaction/rules.ts` returns a `Result` with a `FUTURE_DATE` error, so nothing reaches the database. It is the same shape of boundary check we write for other user input around the app.
