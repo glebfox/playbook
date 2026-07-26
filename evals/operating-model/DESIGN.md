@@ -121,7 +121,7 @@ Three fixture decisions:
 
 - **Files plus `history.sh`, not a nested git repository.** The runner copies the files into a temp directory and replays a scripted history. No submodule handling, and the history is part of the test design rather than decoration — specific commits must land on `domain/transaction/**` *after* the sha recorded in that unit's spec, or the drift case has nothing to detect.
 - **`Reconciled: <sha>` is written by the script after the commit, not stored in the file.** Storing it would require deterministic shas, hence pinned `GIT_AUTHOR_DATE` and author, which is brittle. Writing the real sha post-commit is correct by construction.
-- **Two named worlds, each built by whitelist, not by mutation.** `month-3` is the state above. `day-1` is not a small edit to it — it is a near-total teardown, so it is specified as a whitelist: keep `CLAUDE.md`, `docs/vision.md`, `docs/conventions.md`, `docs/roadmap.md` and the vendored model; `ARCHITECTURE.md` holds only what its arm prescribes; nothing else exists. Building `day-1` by subtraction would leave month-3 residue and silently invalidate r05.
+- **Three named worlds, each built by whitelist or by additive overlay — never by mutation.** `month-3` is the state above, with an empty `active/`. `day-1` is not a small edit to it but a near-total teardown, so it is a whitelist: keep `CLAUDE.md`, `docs/vision.md`, `docs/conventions.md`, `docs/roadmap.md` and the vendored model; `ARCHITECTURE.md` holds only what its arm prescribes; nothing else exists. Building it by subtraction would leave month-3 residue and silently invalidate `r05`. `month-3-mid-increment` is `month-3` plus an additive overlay: one increment still in `active/` whose code has landed, used by `b04` alone. It is a separate world rather than part of `month-3` because `b02` is told to write a design into `active/`, and a directory already sitting there would push that session into either creating a second increment or consolidating the first — and "more than one increment in `active/`" is the behavior this batch deliberately parked (edit 10). The fixture must not force a session into an undefined state.
 
 ## Case schema
 
@@ -168,20 +168,22 @@ Verdicts are ternary: `pass | fail | error`. `error` covers CLI crashes, timeout
 
 ### Routing — 12 cases, "here is fact F, name its single home"
 
+Each fact is chosen so the fixture does **not** already state it — otherwise the case measures compliance with an existing file instead of a routing decision, and `assert-fixture.mjs` carries one absence assertion per row to keep that true as the fixture is edited. The prompts themselves are written out in full in `PLAN.md` Task 4, each with the words it may not contain.
+
 | id | Fact | Expected | Arms | Prediction |
 |---|---|---|---|---|
-| r01 | Money rounds half-up at the presentation boundary; `lib/money.ts` owns no spec | `ARCHITECTURE.md` | A | fail on baseline — the flagship, practitioner's S3 |
-| r02 | "Mutations go through Server Actions" | `ARCHITECTURE.md` | A | fail on baseline |
-| r03 | Next.js node-vs-edge runtime gotcha | `docs/guidelines/**` | C | control |
-| r04 | "Transactions reject zero amounts" | `transaction` spec; `guidelines/**` forbidden | C | fail on baseline — the asymmetry case |
-| r05 | Intended stack, `world: day-1` | `docs/vision.md` | A | fail on baseline |
-| r06 | Half of `services/` moved to `adapters/`; "new work goes in adapters/" | `ARCHITECTURE.md` as a convention | C | fail on baseline — L11 forbids it |
-| r07 | `importKey` unique per account when non-null | the enforcing unit's spec | — | control |
-| r08 | Multi-currency agreed, code still in cents | `vision.md` or `roadmap.md` | A | fail on baseline |
-| r09 | Why integer cents were chosen | `docs/decisions/**` | B | control |
-| r10 | "Re-categorization idempotence not tested" | the unit's test doc | — | control (edit 6 parked) |
-| r11 | Commit message format | `docs/conventions.md` | B | control |
-| r12 | A behavior of a unit that already has a spec under a different axis | the existing spec file, not a new one | B | control (edit 7 parked) |
+| r01 | Money rounds half-up when formatted; stored values never rounded; `lib/money.ts` owns no spec | `ARCHITECTURE.md` | A | fail on baseline — the flagship, practitioner's S3 |
+| r02 | Every write path goes through a Server Action | `ARCHITECTURE.md` | A | fail on baseline |
+| r03 | `fetch` is cached by default in a Server Component; per-user data needs `cache: 'no-store'` | `docs/guidelines/**` | C | control — catches edit 8 over-correcting |
+| r04 | A transaction may not be dated in the future, enforced at the domain boundary; the check's shape is shared | `transaction` spec; `guidelines/**` forbidden | C | fail on baseline — the asymmetry case |
+| r05 | The chosen stack, before any code exists (`world: day-1`) | `docs/vision.md` | A | fail on baseline |
+| r06 | Data access moving into `db/repositories/`; 3 of 8 done; new work goes there | `ARCHITECTURE.md` as a convention | C | fail on baseline — L11 forbids the directive |
+| r07 | `importKey` unique per account when non-null, enforced by a partial index | the enforcing unit's spec | — | control |
+| r08 | Multi-currency agreed this morning, nothing written, no currency column | `vision.md` or `roadmap.md` | A | fail on baseline |
+| r09 | Why Drizzle beat Prisma, and what was given up | `docs/decisions/**` | B | control |
+| r10 | Re-categorization idempotence checked by hand, never automated, low risk | the unit's test doc | — | control (edit 6 parked) |
+| r11 | Commit subjects: imperative, under 60 characters, no trailing period | `docs/conventions.md` | B | control |
+| r12 | Imported transactions keep a batch reference; the same rules apply as to hand-entered ones | the existing `transaction` spec, not a new `features/` file | B | control (edit 7 parked) |
 
 Six controls, six predicted-fail. Controls are not symmetry — without them "the edit helped" cannot be distinguished from "the edit broke something that worked".
 
@@ -194,11 +196,11 @@ Six controls, six predicted-fail. Controls are not symmetry — without them "th
 | b01 | "Move money storage from integer cents to NUMERIC" | `Read(docs/decisions/0004-*)` before first `Write(**)` | B |
 | b02 | "Design the CSV import feature and write the design to `docs/increments/active/<slug>/design.md`" | `Read(docs/guidelines/nextjs-runtime.md)` before `Write(**/design.md)` | B |
 | b03 | "Implement X in transaction"; fixture has commits past the spec's `Reconciled` sha | `git log` or `git diff` naming a path under `domain/transaction/**` | B |
-| b04 | "Here is a completed increment's diff; consolidate it" | `Write` or `Edit` on `ARCHITECTURE.md` | A |
+| b04 | "The increment in `active/` is finished and its code has landed — do what the process says" (`world: month-3-mid-increment`) | `Write` or `Edit` on `ARCHITECTURE.md` | A |
 
 `b01` encodes a real incident that cost a five-hour limit. `b03` is the one case where a **negative result is the most valuable outcome**: failing on arm B as well as baseline would mean reconcile markers get written and never read, settling the panel's first open disagreement against edit 3 — cheaply, before the mechanism ships.
 
-`b04`'s increment diff must contain at least one change whose only legal home is `ARCHITECTURE.md` — a layout or convention change. A purely unit-behavioral diff would make arm A's *correct* consolidation (specs only) score fail.
+`b04`'s landed increment must contain at least one fact whose only legal home is `ARCHITECTURE.md`; it adds a new build command (`npm run db:seed`) alongside a transaction behavior. A purely unit-behavioral increment would make arm A's *correct* consolidation — specs only — score fail. It deliberately does not describe the `db/repositories/` move: `r06` routes that exact fact, and an increment design stating it would give `r06` a defensible second answer inside `docs/increments/**`, which `r06` forbids. No two cases may contend for the same fact.
 
 ## Run size
 

@@ -81,6 +81,7 @@ Nothing in this phase calls a model. Its deliverables are checked by `git log`, 
 - Create: `evals/operating-model/fixture/ledger/docs/tests/domains/transaction.md`
 - Create: `evals/operating-model/fixture/ledger/docs/increments/completed/2026-05-12-recurring-transactions/{design.md,plan.md}`
 - Create: `evals/operating-model/fixture/ledger/{app/transactions/page.tsx,domain/transaction/{rules.ts,index.ts},lib/money.ts,db/schema.ts,package.json}`
+- Create: `evals/operating-model/fixture/mid-increment/{docs/increments/active/2026-07-20-seed-and-backdate/{design.md,plan.md},db/seed.ts,package.json}` — the additive overlay for `world: month-3-mid-increment`, used by `b04` only
 - Create: `evals/operating-model/fixture/day-1.whitelist`
 - Create: `evals/operating-model/fixture/assert-fixture.mjs`
 
@@ -93,21 +94,28 @@ Two files are lifted from the panel review rather than authored fresh — copy t
 
 The prose files are written to a target length, but what makes them correct is the fact list below. These facts are load-bearing: a case's expected answer depends on each one, so `assert-fixture.mjs` checks them mechanically.
 
-| File | Required facts | Needed by |
-|---|---|---|
-| `ARCHITECTURE.md` | a `## Conventions` list whose first entry is integer cents with a `see decision 0004` pointer; entries for `domain/` not importing `services/`, and errors crossing boundaries as result unions; a `## Layout` block naming `app/`, `domain/`, `lib/`, `db/`; a `## Commands` block. No mention of rounding, and no mention of Server Actions. | r01, r02, r09, b04 |
-| `docs/vision.md` | scope split MVP vs future; increment descriptions; a "still unbuilt" section that does **not** mention multi-currency | r05, r08 |
-| `docs/roadmap.md` | per-increment status lines; a future-backlog section that does **not** mention multi-currency | r08 |
-| `docs/conventions.md` | commit-message format stated explicitly | r11 |
-| `docs/guidelines/nextjs-runtime.md` | the node-vs-edge runtime constraint, and that streaming upload parsing requires the node runtime | r03, b02 |
-| `docs/guidelines/testing.md` | test stack and run command; no per-unit coverage rows | r10 |
-| `docs/decisions/0004-*.md` | Status/Context/Decision/Consequences; `NUMERIC` + `decimal.js` rejected, with the Drizzle-returns-string and Server-Action-boundary reasons | r09, b01 |
-| `docs/decisions/0009-import-key.md` | `importKey = hash(account, date, amount, description)` chosen over the bank-provided id; states the partial unique index | r07 |
-| `docs/specs/domains/transaction.md` | 7 behaviors + 3 invariants; one invariant is "rejects zero amounts"; an "Extension points" section naming `domain/transaction/rules.ts`; **no** `Source:`/`Reconciled:` headers | r04, r07, r12, b01, b03 |
-| `docs/specs/domains/budget.md` | a behavior where **zero is a legitimate limit**, stated in those terms | r04 |
-| `docs/tests/domains/transaction.md` | 12 coverage rows, at least 3 of them explicit gaps with reasons; a pointer to `docs/guidelines/testing.md`; **no** row for re-categorization idempotence | r10 |
-| `lib/money.ts` | `formatMoney` and `parseMoney` signatures; a comment that rounding behavior is unspecified | r01 |
-| `domain/transaction/rules.ts` | a `rejectZeroAmount` guard signature | r04 |
+Read the two classes together: each file must **state** what its cases need to find, and must **not state** the facts its cases exist to route. `assert-fixture.mjs` checks both directions.
+
+| File | Must state | Must not state | Needed by |
+|---|---|---|---|
+| `ARCHITECTURE.md` | a `## Conventions` list whose first entry is integer cents with a `see decision 0004` pointer, plus `domain/` never importing from `app/`, and errors crossing boundaries as result unions; a `## Layout` block naming `app/`, `domain/`, `lib/`, `db/`; a `## Commands` block | rounding; Server Actions; any repository layer | r01, r02, r06, b04 |
+| `docs/vision.md` | scope split MVP vs future; increment descriptions; a "still unbuilt" section | the stack (Next.js, Postgres — by month 3 it has migrated to `ARCHITECTURE.md`); multi-currency | r05, r08 |
+| `docs/roadmap.md` | per-increment status lines; a future-backlog section | multi-currency | r08 |
+| `docs/conventions.md` | a commit-message format — conventional-commits prefixes (`feat:`, `fix:`, `doc:`) and the English-only rule | imperative mood; any subject-length limit | r11 |
+| `docs/guidelines/nextjs-runtime.md` | the node-vs-edge runtime constraint, and that streaming upload parsing requires the node runtime | `fetch` caching or `no-store` | r03, b02 |
+| `docs/guidelines/testing.md` | test stack and run command | per-unit coverage rows | r10 |
+| `docs/decisions/0004-*.md` | Status/Context/Decision/Consequences; `NUMERIC` + `decimal.js` rejected, with the Drizzle-returns-string and Server-Action-boundary reasons | — | b01 |
+| `docs/decisions/0009-import-key.md` | `importKey = hash(account, date, amount, description)` chosen over the bank-provided id; the partial unique index | a `Governs:` line (arm-owned) | r07 |
+| any file under `docs/decisions/` | — | Prisma, anywhere in the log | r09 |
+| `docs/specs/domains/transaction.md` | 7 behaviors + 3 invariants, one being "rejects zero amounts"; an "Extension points" section naming `domain/transaction/rules.ts` | future-dating; `importKey` uniqueness; import batches; `Source:`/`Reconciled:` headers (arm-owned) | r04, r07, r12, b01, b03 |
+| `docs/specs/domains/budget.md` | **zero is a legitimate limit**, in those terms; and that a budget may **start in the future** | — | r04 |
+| `docs/tests/domains/transaction.md` | 12 coverage rows, at least 3 explicit gaps with reasons; a pointer to `docs/guidelines/testing.md` | re-categorization idempotence | r10 |
+| `lib/money.ts` | `formatMoney` and `parseMoney` signatures; a comment that rounding is unspecified | — | r01 |
+| `domain/transaction/rules.ts` | a `rejectZeroAmount` guard signature | `rejectFutureDate` | r04 |
+
+The two `budget.md` requirements are what make `r04`'s bait real rather than rhetorical: budgets both allow a zero limit and legitimately start in the future, so a rule of either shape promoted into a guideline lands on a unit where it is false. That is the contagion the asymmetry edit prevents, and without those two lines in the fixture the case has nothing to be wrong about.
+
+**The `month-3-mid-increment` overlay** lives in `fixture/mid-increment/` and is copied over `ledger/` additively — never merged into it, because `b02` and `b03` must run in a world with an empty `active/`. It holds `docs/increments/active/2026-07-20-seed-and-backdate/{design.md,plan.md}`, `db/seed.ts`, and a `package.json` carrying a `db:seed` script. Its design describes work that has already landed: a seed command, and imported-transaction backdating re-running the dedupe check.
 
 - [ ] **Step 1: Verify the rescued content is present — it was copied out of a session-scoped scratchpad at plan time**
 
@@ -127,31 +135,59 @@ Expected: `review-{skeptic,advocate,practitioner}.md` and two `day-1-*.md` files
 Create `evals/operating-model/fixture/assert-fixture.mjs`:
 
 ```javascript
-import { readFileSync, existsSync } from 'node:fs'
+import { readFileSync, existsSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 
 const root = process.argv[2] ?? new URL('./ledger/', import.meta.url).pathname
 const read = p => existsSync(join(root, p)) ? readFileSync(join(root, p), 'utf8') : null
 
-// [file, description, predicate] — every entry is a fact some case depends on
+// Two classes of entry, both load-bearing:
+//   PRESENT — the fixture must state this, because a case's expected destination depends on it
+//             existing, or on the file being the plausible home.
+//   ABSENT  — the fixture must NOT state this, because a routing case routes it. If the fact is
+//             already in the tree there is nothing to route and the case silently measures
+//             compliance with an existing file instead of a routing decision. This class is the
+//             one that goes stale as the fixture is edited, so it is checked mechanically.
 const FACTS = [
+  // --- PRESENT ---
   ['ARCHITECTURE.md', 'integer-cents convention cites decision 0004', s => /integer cents/i.test(s) && /decision 0004/.test(s)],
-  ['ARCHITECTURE.md', 'no rounding statement (r01 must have no home yet)', s => !/round/i.test(s)],
-  ['ARCHITECTURE.md', 'no Server Actions statement (r02 must have no home yet)', s => !/server action/i.test(s)],
   ['ARCHITECTURE.md', 'layout block names app/, domain/, lib/, db/', s => ['app/', 'domain/', 'lib/', 'db/'].every(d => s.includes(d))],
-  ['docs/vision.md', 'does not mention multi-currency (r08 target is empty)', s => !/multi-currenc/i.test(s)],
-  ['docs/roadmap.md', 'does not mention multi-currency', s => !/multi-currenc/i.test(s)],
-  ['docs/conventions.md', 'states a commit message format', s => /commit/i.test(s)],
-  ['docs/guidelines/nextjs-runtime.md', 'states the node-vs-edge constraint', s => /edge/i.test(s) && /node/i.test(s)],
+  ['ARCHITECTURE.md', 'has a Commands block (b04 consolidates a new command into it)', s => /^##\s+Commands/m.test(s)],
+  ['docs/conventions.md', 'states some commit message format, so it is the plausible home for r11', s => /commit/i.test(s)],
+  ['docs/guidelines/nextjs-runtime.md', 'states the node-vs-edge constraint (b02 must be able to find it)', s => /edge/i.test(s) && /node/i.test(s)],
   ['docs/decisions/0004-money-integer-cents.md', 'records the rejected NUMERIC alternative', s => /NUMERIC/.test(s) && /decimal/i.test(s)],
   ['docs/decisions/0009-import-key.md', 'records the partial unique index', s => /partial unique index/i.test(s)],
-  ['docs/specs/domains/transaction.md', 'invariant: rejects zero amounts', s => /zero amount/i.test(s)],
-  ['docs/specs/domains/transaction.md', 'no reconcile headers in the arm-independent fixture', s => !/^Reconciled:/m.test(s) && !/^Source:/m.test(s)],
+  ['docs/specs/domains/transaction.md', '7 behaviors and 3 invariants', s => (s.match(/^[-*|]/gm) ?? []).length >= 10],
+  ['docs/specs/domains/transaction.md', 'Extension points name domain/transaction/rules.ts', s => /rules\.ts/.test(s)],
   ['docs/specs/domains/budget.md', 'zero is a legitimate limit', s => /zero/i.test(s) && /limit/i.test(s)],
+  ['docs/specs/domains/budget.md', 'a budget may start in the future (r04 contagion landing site)', s => /future/i.test(s)],
   ['docs/tests/domains/transaction.md', 'has explicit gap rows', s => /not verified|not tested/i.test(s)],
-  ['docs/tests/domains/transaction.md', 'no re-categorization row (r10 must have no home yet)', s => !/re-categoriz/i.test(s)],
+  ['docs/tests/domains/transaction.md', 'points at the testing guideline', s => /guidelines\/testing/.test(s)],
   ['lib/money.ts', 'formatMoney signature present', s => /formatMoney/.test(s)],
   ['domain/transaction/rules.ts', 'rejectZeroAmount guard present', s => /rejectZeroAmount/.test(s)],
+
+  // --- ABSENT: one row per routing case, so a fixture edit cannot silently disarm a case ---
+  ['ARCHITECTURE.md', 'r01: no rounding statement', s => !/round/i.test(s)],
+  ['ARCHITECTURE.md', 'r02: no Server Actions statement', s => !/server action/i.test(s)],
+  ['docs/guidelines/nextjs-runtime.md', 'r03: no fetch-caching mechanic', s => !/no-store/i.test(s) && !/fetch.*cach/i.test(s)],
+  ['docs/specs/domains/transaction.md', 'r04: no future-dating rule', s => !/future/i.test(s)],
+  ['docs/vision.md', 'r05: does not name the stack — by month 3 it has migrated to ARCHITECTURE.md', s => !/Next\.js/i.test(s) && !/Postgres/i.test(s)],
+  ['ARCHITECTURE.md', 'r06: no repository layer', s => !/repositor/i.test(s)],
+  ['docs/specs/domains/transaction.md', 'r07: importKey uniqueness not yet stated in the spec', s => !(/importKey/.test(s) && /unique/i.test(s))],
+  ['docs/vision.md', 'r08: no multi-currency', s => !/multi-currenc/i.test(s)],
+  ['docs/roadmap.md', 'r08: no multi-currency', s => !/multi-currenc/i.test(s)],
+  ['docs/conventions.md', 'r11: no imperative-mood or 60-character rule', s => !/imperative/i.test(s) && !/60/.test(s)],
+  ['docs/specs/domains/transaction.md', 'r12: no import-batch reference', s => !/batch/i.test(s)],
+  ['docs/tests/domains/transaction.md', 'r10: no re-categorization row', s => !/re-categoriz/i.test(s)],
+  ['docs/specs/domains/transaction.md', 'no reconcile headers — those are arm-owned, written by history.sh', s => !/^Reconciled:/m.test(s) && !/^Source:/m.test(s)],
+  ['docs/decisions/0009-import-key.md', 'no Governs: line — arm-owned', s => !/^Governs:/m.test(s)],
+]
+
+// r09's absence is a whole-tree property rather than a single file: no decision may already
+// record the Drizzle-vs-Prisma rationale.
+const TREE_FACTS = [
+  ['docs/decisions', 'r09: no Prisma rationale anywhere in the decision log', dir =>
+    !readdirSync(dir).some(f => /prisma/i.test(readFileSync(join(dir, f), 'utf8')))],
 ]
 
 let failed = 0
@@ -160,7 +196,13 @@ for (const [file, desc, pred] of FACTS) {
   const ok = s !== null && pred(s)
   if (!ok) { failed++; console.error(`FAIL ${file}: ${desc}${s === null ? ' (file missing)' : ''}`) }
 }
-console.log(failed === 0 ? `OK ${FACTS.length} facts` : `${failed}/${FACTS.length} facts failed`)
+for (const [rel, desc, pred] of TREE_FACTS) {
+  const dir = join(root, rel)
+  const ok = existsSync(dir) && pred(dir)
+  if (!ok) { failed++; console.error(`FAIL ${rel}: ${desc}`) }
+}
+const total = FACTS.length + TREE_FACTS.length
+console.log(failed === 0 ? `OK ${total} facts` : `${failed}/${total} facts failed`)
 process.exit(failed === 0 ? 0 : 1)
 ```
 
@@ -188,7 +230,7 @@ package.json
 - [ ] **Step 5: Run the assertion until green**
 
 Run: `node evals/operating-model/fixture/assert-fixture.mjs`
-Expected: `OK 17 facts`, exit 0.
+Expected: `OK 30 facts`, exit 0. Fifteen are PRESENT assertions; fifteen are ABSENT — one per routing case plus the arm-owned artifacts, so that a later fixture edit cannot silently disarm a case by documenting the fact it was supposed to route.
 
 - [ ] **Step 6: Commit**
 
@@ -594,7 +636,7 @@ The frontmatter subset used here is flat keys, inline arrays, inline objects, an
 const ARMS = ['A', 'B', 'C']
 const FAMILIES = ['routing', 'behavioral']
 const PREDICTS = ['fail-on-baseline', 'control']
-const WORLDS = ['month-3', 'day-1']
+const WORLDS = ['month-3', 'day-1', 'month-3-mid-increment']
 const GRADE_TYPES = ['destination', 'tool-log']
 
 const scalar = v => {
@@ -690,15 +732,21 @@ console.log(`${seen.size} cases, ${combos} case-arm combinations, ${bad} invalid
 process.exit(bad === 0 ? 0 : 1)
 ```
 
-- [ ] **Step 6: Write the 16 case files**
+- [ ] **Step 6: Write the twelve routing case files**
 
-Each routing case body states the fact in a way that does **not** name its own category — a prompt saying "here is an architectural convention" hands over the answer and makes the case measure nothing. State the fact in domain terms and let the model classify it. Example, `cases/routing/r01-money-rounding-home.md`:
+Three rules govern every body, and the whole measurement rests on them:
+
+1. **Never name the destination's category.** A prompt that says "here is an architectural convention" has handed over the answer. Each case below lists the words it may not contain.
+2. **State the fact the way a developer would say it in standup**, not as a taxonomy exercise.
+3. **The fact must not already be in the fixture.** If it is, there is nothing to route and the case measures compliance with an existing file instead of a routing decision. `assert-fixture.mjs` asserts the absence of all twelve — that is what those negative facts are for.
+
+No body carries an output contract: `composeRoutingPrompt` appends the same one to all twelve, so they are uniform by construction.
 
 ```markdown
 ---
 id: r01-money-rounding-home
 family: routing
-finding: F2/S3
+finding: F2/S3 — a fact no unit owns, and ARCHITECTURE.md is in no write path
 targets: [A]
 predicts: fail-on-baseline
 world: month-3
@@ -709,12 +757,249 @@ grade:
   expect: ["ARCHITECTURE.md"]
   forbid: ["docs/specs/**", "docs/guidelines/**", "docs/decisions/**"]
 ---
-A one-line change to `lib/money.ts` just settled how the app rounds: amounts round half-up when they are formatted for display, and stored values are never rounded. This is now true everywhere in the codebase, not just in one feature.
-
-Following this project's documentation model, name the single file where this fact belongs.
+A one-line change to `lib/money.ts` just settled how this app rounds. Amounts round half-up when they are formatted for display, and stored values are never rounded. That holds everywhere in the codebase — there is no single feature or module it belongs to, and `lib/money.ts` is a helper, not one of the units we keep specs for.
 ```
 
-Take the fact statements for the other eleven from `DESIGN.md`'s routing table, and give each one two or three explicit must-state / must-not-state constraints before writing it — this is the weakest specification in the plan and the likeliest source of a fixture that passes every assertion while measuring nothing. Worked examples of the constraint form: `r07` must name which unit *enforces* the invariant and must not use the word "contract"; `r12` must describe the existing spec's axis without naming its path; `r04` must state that several units share the behavior (the guideline temptation) without using the words "guideline" or "spec"; `r06` must describe both shapes and the directive for new code without using the words "convention" or "intended". Behavioral cases carry `caps: {budgetUsd: 3.0, timeoutMs: 900000}` and a `grade.predicate`, for example `b01`:
+Forbidden words: *convention, architecture, architectural, guideline*.
+
+```markdown
+---
+id: r02-server-actions-home
+family: routing
+finding: S2(v) — no step routes an architectural fact discovered while implementing
+targets: [A]
+predicts: fail-on-baseline
+world: month-3
+reps: {haiku: 10, opus: 5}
+caps: {budgetUsd: 0.5, timeoutMs: 120000}
+grade:
+  type: destination
+  expect: ["ARCHITECTURE.md"]
+  forbid: ["docs/specs/**", "docs/guidelines/**"]
+---
+Every write path in this app now goes through a Server Action. No route handler mutates data any more, and no client component touches the database directly. That is settled for the whole codebase and applies to write paths we haven't built yet.
+```
+
+Forbidden words: *convention, architecture, architectural*.
+
+```markdown
+---
+id: r03-fetch-cache-mechanic
+family: routing
+finding: control for L50 — a platform mechanic must stay a guideline under edit 8's default
+targets: [C]
+predicts: control
+world: month-3
+reps: {haiku: 10, opus: 5}
+caps: {budgetUsd: 0.5, timeoutMs: 120000}
+grade:
+  type: destination
+  expect: ["docs/guidelines/**"]
+  forbid: ["docs/specs/**", "ARCHITECTURE.md"]
+---
+Found this the hard way. Inside a Server Component, `fetch` results are cached by default, so a request for one user's data can come back on a later request belonging to a different user. You have to pass `cache: 'no-store'` explicitly. It will bite anywhere in the app that fetches per-user data.
+```
+
+Forbidden words: *guideline, platform, mechanic, framework*. This is the control that catches edit 8 over-correcting: its default is "when unsure, leave it in the spec", and a genuine platform mechanic pushed into a spec is the regression.
+
+```markdown
+---
+id: r04-future-date-rule
+family: routing
+finding: P4 — the spec-vs-guideline asymmetry; a unit fact promoted to a guideline is contagious
+targets: [C]
+predicts: fail-on-baseline
+world: month-3
+reps: {haiku: 10, opus: 5}
+caps: {budgetUsd: 0.5, timeoutMs: 120000}
+grade:
+  type: destination
+  expect: ["docs/specs/domains/transaction.md"]
+  forbid: ["docs/guidelines/**", "ARCHITECTURE.md"]
+---
+We settled that a transaction cannot be dated in the future. `rejectFutureDate` in `domain/transaction/rules.ts` throws before anything reaches the database. It is the same shape of boundary check we write for other user input around the app.
+```
+
+Forbidden words: *guideline, spec, unit, convention*. The bait is the closing sentence: the check's *shape* is shared, so a guideline is tempting — but the subject is the transaction unit, and budgets legitimately start in the future, so a guideline would hand them a rule that is false for them.
+
+```markdown
+---
+id: r05-intended-stack-home
+family: routing
+finding: S1(4) — the map has no route to stack intent when ARCHITECTURE.md is legitimately empty
+targets: [A]
+predicts: fail-on-baseline
+world: day-1
+reps: {haiku: 10, opus: 5}
+caps: {budgetUsd: 0.5, timeoutMs: 120000}
+grade:
+  type: destination
+  expect: ["docs/vision.md"]
+  forbid: ["ARCHITECTURE.md", "docs/decisions/**"]
+---
+No code exists yet — the repository is empty apart from its documentation. We have settled on Next.js 15 with the App Router, Postgres 16 behind Drizzle, and Auth.js for sessions, with domain logic in a `domain/` directory that route handlers call into.
+```
+
+Forbidden words: *intended, intent, vision, plan, roadmap*.
+
+```markdown
+---
+id: r06-partial-migration-directive
+family: routing
+finding: S5(d)/F5 — a partially-realized state and the directive for new code have no legal home
+targets: [C]
+predicts: fail-on-baseline
+world: month-3
+reps: {haiku: 10, opus: 5}
+caps: {budgetUsd: 0.5, timeoutMs: 120000}
+grade:
+  type: destination
+  expect: ["ARCHITECTURE.md"]
+  forbid: ["docs/increments/**", "docs/vision.md", "docs/roadmap.md"]
+---
+We are moving data access out of the route handlers into `db/repositories/`. Three of the eight handlers have moved; the other five still call Drizzle directly. From here on, anything new goes through a repository.
+```
+
+Forbidden words: *convention, intended, plan, architecture*. Note the fixture describes no `db/repositories/` layer, so this is a live change of state rather than a restatement.
+
+```markdown
+---
+id: r07-cross-unit-invariant
+family: routing
+finding: S8 — the owner of a shared invariant is whoever enforces it
+targets: []
+predicts: control
+world: month-3
+reps: {haiku: 10, opus: 5}
+caps: {budgetUsd: 0.5, timeoutMs: 120000}
+grade:
+  type: destination
+  expect: ["docs/specs/domains/transaction.md"]
+  forbid: ["ARCHITECTURE.md", "docs/specs/domains/budget.md"]
+---
+An imported transaction carries an `importKey`, and the database enforces that it is unique per account whenever it is not null — a partial unique index on the transactions table. Budgets never set one.
+```
+
+Forbidden words: *contract, spec, guideline, cross-cutting*.
+
+```markdown
+---
+id: r08-agreed-not-implemented
+family: routing
+finding: S5(f) — a choice agreed but not yet implemented is still intent, not current state
+targets: [A]
+predicts: fail-on-baseline
+world: month-3
+reps: {haiku: 10, opus: 5}
+caps: {budgetUsd: 0.5, timeoutMs: 120000}
+grade:
+  type: destination
+  expect: ["docs/vision.md", "docs/roadmap.md"]
+  forbid: ["docs/decisions/**", "ARCHITECTURE.md", "docs/specs/**"]
+---
+We agreed this morning to support more than one currency. None of it is written: every amount in the code is still an integer number of cents in a single currency, and the schema has no currency column at all.
+```
+
+Forbidden words: *decision, intent, backlog, roadmap, vision*.
+
+```markdown
+---
+id: r09-rationale-home
+family: routing
+finding: control for the decisions tier, and for edit 5a removing the skeleton's routing table
+targets: [B]
+predicts: control
+world: month-3
+reps: {haiku: 10, opus: 5}
+caps: {budgetUsd: 0.5, timeoutMs: 120000}
+grade:
+  type: destination
+  expect: ["docs/decisions/**"]
+  forbid: ["ARCHITECTURE.md", "docs/specs/**", "docs/guidelines/**"]
+---
+Writing down why we went with Drizzle instead of Prisma: Prisma's query engine binary would not run on our deploy target, and the reporting queries need raw SQL escape hatches. What we gave up is Prisma Studio and hand-free migrations, and we decided that was worth it.
+```
+
+Forbidden words: *decision, rationale, ADR, log*.
+
+```markdown
+---
+id: r10-untested-behavior
+family: routing
+finding: control for edit 6 (parked) — coverage state must still route to the test doc
+targets: []
+predicts: control
+world: month-3
+reps: {haiku: 10, opus: 5}
+caps: {budgetUsd: 0.5, timeoutMs: 120000}
+grade:
+  type: destination
+  expect: ["docs/tests/domains/transaction.md"]
+  forbid: ["docs/specs/domains/transaction.md", "docs/guidelines/**"]
+---
+Re-categorizing a transaction twice in a row should end up in the same state as doing it once. Nobody has automated a check for it — it has been tried by hand a couple of times, and the risk looks low because the result is visible in the UI immediately.
+```
+
+Forbidden words: *coverage, gap, matrix, test doc, TODO*.
+
+```markdown
+---
+id: r11-commit-format
+family: routing
+finding: control for edit 5a — the most routing-sensitive removal in the batch
+targets: [B]
+predicts: control
+world: month-3
+reps: {haiku: 10, opus: 5}
+caps: {budgetUsd: 0.5, timeoutMs: 120000}
+grade:
+  type: destination
+  expect: ["docs/conventions.md"]
+  forbid: ["ARCHITECTURE.md", "docs/guidelines/**", "CLAUDE.md"]
+---
+Settled on how we write commit subjects: imperative mood, under 60 characters, no trailing period.
+```
+
+Forbidden words: *convention, style guide, contribution*.
+
+```markdown
+---
+id: r12-existing-unit-different-framing
+family: routing
+finding: P3 — the axis failure is duplicate creation, not unfindability
+targets: [B]
+predicts: control
+world: month-3
+reps: {haiku: 10, opus: 5}
+caps: {budgetUsd: 0.5, timeoutMs: 120000}
+grade:
+  type: destination
+  expect: ["docs/specs/domains/transaction.md"]
+  forbid: ["docs/specs/features/**", "docs/specs/components/**", "docs/specs/services/**", "docs/guidelines/**"]
+---
+Transactions that arrived through a file import keep a reference to the batch they came in with, and every rule that applies to a hand-entered transaction applies to them too.
+```
+
+Forbidden words: *axis, domain, spec, feature, component*. The temptation is a new `docs/specs/features/csv-import.md`; the subject is transaction behavior and that unit already has a file. This is the duplicate-creation failure, so `forbid` names the plausible wrong axes rather than a category.
+
+- [ ] **Step 6b: Write the four behavioral case files**
+
+Bodies are task instructions rather than fact statements, and they are given to the agent in a staged fixture with full tool access. Frontmatter carries `caps: {budgetUsd: 3.0, timeoutMs: 900000}`, `reps: {opus: 3}`, and the predicates from the table above.
+
+| case | body |
+|---|---|
+| b01 | "Money is currently stored as an integer number of cents. Change the storage to a Postgres `NUMERIC` column and update the code that reads and writes it. Work in this repository and follow whatever process it documents." |
+| b02 | "We want to import transactions from a bank CSV: upload a file, parse it, skip rows we already have. Design it and write the design to `docs/increments/active/2026-07-26-csv-import/design.md`. Do not implement it." |
+| b03 | "Add a rule to the transaction domain: a transaction may not be edited once it is more than 90 days old. Follow whatever process this repository documents." |
+| b04 | "The increment under `docs/increments/active/` is finished — all of its code has landed. Do whatever this repository's process says to do at that point." |
+
+`b04` uses `world: month-3-mid-increment` and needs two things the other worlds must not have.
+
+**An increment in `active/`** — `docs/increments/2026-07-20-seed-and-backdate/{design.md,plan.md}` — whose landed work contains at least one fact whose only legal home is `ARCHITECTURE.md`. Make it a **new build command**: the increment added `npm run db:seed`, plus a transaction behavior (backdating an imported transaction re-runs the dedupe check). Consolidation must then touch the spec *and* `ARCHITECTURE.md`'s `## Commands` block — and arm A names `ARCHITECTURE.md` in the write paths while baseline does not, which is the whole measurement. A purely unit-behavioral diff would make arm A's *correct* consolidation score fail.
+
+**Its own world**, because an increment sitting in `active/` must not be visible to `b02` and `b03`. `b02` is told to write a new design into `active/`, and a pre-existing directory there would have it either create a second one or stop to consolidate the first — and "more than one increment in `active/`" is exactly the behavior this batch parked (edit 10), so the fixture must not force a session into it. Add `month-3-mid-increment` to the schema's `WORLDS`, and in `stage()` build it as `month-3` plus that increment directory plus the landed code (`db/seed.ts`, the command in `package.json`). Nothing is removed.
+
+Deliberately do **not** reuse the `db/repositories/` move here: `r06` routes that exact fact, and an increment design describing it would give `r06` a defensible second answer inside `docs/increments/**`, which `r06` forbids. Two cases must never contend for the same fact. Behavioral cases carry `caps: {budgetUsd: 3.0, timeoutMs: 900000}` and a `grade.predicate`, for example `b01`:
 
 ```yaml
 grade:
@@ -849,6 +1134,11 @@ const STATUS_LINE_ARMS = new Set(['A', 'ALL']) // the day-1 ARCHITECTURE.md stat
 export function stage({ suite, arm, world, baselineSha }) {
   const dir = mkdtempSync(join(tmpdir(), `eval-${arm}-`))
   cpSync(join(suite, 'fixture/ledger'), dir, { recursive: true })
+
+  if (world === 'month-3-mid-increment') {
+    // month-3 plus one increment still in active/ and its landed code. Additive only.
+    cpSync(join(suite, 'fixture/mid-increment'), dir, { recursive: true })
+  }
 
   if (world === 'day-1') {
     const keep = new Set(readFileSync(join(suite, 'fixture/day-1.whitelist'), 'utf8').split('\n').map(s => s.trim()).filter(Boolean))
@@ -1065,9 +1355,17 @@ export function composeRoutingPrompt(dir, question) {
   }
   const tree = execFileSync('git', ['-C', dir, 'ls-files'], { encoding: 'utf8' }).trim()
   parts.push(`===== file tree =====\n${tree}`)
-  parts.push(`===== question =====\n${question}`)
+  parts.push(`===== new fact =====\n${question}`)
+  parts.push(`===== task =====\n${OUTPUT_CONTRACT}`)
   return parts.join('\n\n')
 }
+
+// The contract lives here, not in the twelve case files: appending it once by construction is
+// what makes the cases uniform. Twelve hand-copied contracts would drift, and a drifted contract
+// changes what the grader is reading.
+const OUTPUT_CONTRACT = `Following the documentation and workflow model this project uses, decide where this fact belongs.
+
+It has exactly one home. Reply with a JSON object and nothing else: {"destination": "<repository-relative path>"}. Give the path of a single file — the one that should hold this fact, whether or not that file exists yet. If the model gives the fact no legal home at all, answer {"destination": "NONE"}.`
 
 export function buildArgs({ model, family, caps, jsonSchema, isolated }) {
   const a = ['-p', '--model', model, '--output-format', 'stream-json', '--verbose']
