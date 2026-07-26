@@ -1595,7 +1595,11 @@ export function invoke({ dir, prompt, model, family, caps, jsonSchema, isolated 
 - [ ] **Step 4: Run the test to verify it passes**
 
 Run: `node --test evals/runner/invoke.test.mjs`
-Expected: 6 passing tests. The routing-prompt test depends on Task 5's `stage`, so it fails until that is done — run it after Task 5 if you are working out of order.
+Expected: 7 passing tests. The two routing-prompt tests depend on Task 5's `stage`, so they fail until that is done — run them after Task 5 if you are working out of order.
+
+**A seventh test, and one addition to `composeRoutingPrompt`: the `day-1` world also injects `ARCHITECTURE.md`.** In that world the file's content is arm-owned — the status line is edit 1's payload, and in a one-turn run with no tools it is the *only* channel by which arm A's fixture half reaches the model. The context list as specified would have `stage()` write an artifact `selfCheck` verifies and the model never sees, which is the vacuous pass DESIGN.md warns about one section earlier. It stays out of `month-3`, where the file is identical in every arm and injecting it would only make the destination more salient for the three cases that expect it — inflating the baseline and biasing bundle A's delta toward null. The world is derived structurally (no `docs/specs/` means day-1), so a caller that forgets to pass it cannot silently lose the file again.
+
+Two smaller divergences from `DESIGN.md`'s *Delivery* list, both immaterial because they are identical across arms: the tree is emitted after the two specs rather than between them, and it comes from `git ls-files` rather than `ls -R` (tracked fixture only, no temp-dir noise — which is also why this runs after `history.sh`).
 
 The `git ls-files` call is why `composeRoutingPrompt` runs *after* `history.sh`: the tree comes from git rather than a directory walk so it lists exactly the tracked fixture, with no temp-dir noise.
 
@@ -1623,6 +1627,12 @@ The table at the top records what was actually smoke-tested. Everything below is
 | The `system`/`init` event carries `.model` | `resolvedModel` is null in every ledger line; model drift becomes untraceable | inspect the init event |
 | Budget exhaustion surfaces as a non-`success` result subtype | cap-hits score `fail` instead of `error`, reintroducing treatment-correlated censoring | run with `--max-budget-usd 0.001` and inspect `result.subtype` |
 | In subscription (fallback) mode, `total_cost_usd` is non-zero | `isBroken`'s zero-cost heuristic blanket-errors every run | run once without `--setting-sources` and inspect `result.total_cost_usd` |
+
+All six, plus step 5's auth check, are packaged as `evals/runner/verify-cli.sh` — one terminal command, PASS/FAIL per assumption with the raw evidence kept in a temp directory so a failure can be diagnosed without re-running. It stages a real month-3 baseline tree and drives the checks through `invoke.mjs`, so what it verifies is the code path the suite actually uses rather than a hand-typed approximation. It stops after the auth check if that fails, because every later check would fail for the same reason.
+
+```bash
+sh evals/runner/verify-cli.sh
+```
 
 Record the outcomes in `evals/operating-model/README.md` under a *Verified CLI facts* heading, and move any that fail into a fix before proceeding.
 

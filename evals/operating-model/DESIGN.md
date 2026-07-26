@@ -103,6 +103,8 @@ How each arm's text reaches the model under test, stated because every number de
 4. both domain specs, `docs/specs/domains/{transaction,budget}.md` (arm-owned headers)
 5. the case question and its output contract
 
+**Corrected during Task 6:** the `day-1` world injects `ARCHITECTURE.md` as well, after item 1. There, and only there, that file's content is arm-owned — the status line in the *Arms* table above — so leaving it out of the context would mean `stage()` writes it, `selfCheck` verifies it, and the model never sees it. It stays out of `month-3`, where it is constant across arms and injecting it would make the destination more salient for the three cases that expect it, inflating the baseline.
+
 Item 3 is what makes r07 and r12 answerable at all — both require knowing which spec paths already exist. Item 4 is what makes r04's contagion bait live: without `budget.md` in view there is no second unit for a false generalization to reach. Pre-assembly rather than exploration is chosen so that arms differ only in what we inject, not in what the model happened to look at.
 
 **Behavioral cases: multi-turn, full tool access, agent explores the fixture itself.** Realism is the point here — the question is what a session actually reads, and pre-assembling the context would answer it by fiat.
