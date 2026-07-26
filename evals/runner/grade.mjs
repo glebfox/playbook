@@ -25,14 +25,27 @@ function firstIndex(toolCalls, tool, glob) {
 // uses Edit, and a predicate that names only Write false-fails every real consolidation.
 const TERM = /^saw\(([A-Za-z*|]+):(.+)\)$/
 
+// Two ordering operators, because "the write never happened" means opposite things in different cases:
+//
+//   A before B — A occurred, and no B preceded it. B may never happen at all.
+//   A then B   — both occurred, A's first occurrence before B's.
+//
+// b01 wants `before`: a session that reads decision 0004 and then stops to argue instead of migrating
+// has done the right thing — that is the incident the case encodes. b02 wants `then`: it is told to
+// write a design, so a run that reads the guideline and never writes has demonstrated nothing, and
+// `before` would score it `pass` vacuously. The first real b01 run made this concrete — it read the
+// decision, asked a clarifying question, and wrote nothing.
 function evalPredicate(toolCalls, predicate) {
-  const [lhs, rhs] = predicate.split(/\s+before\s+/).map(s => s.trim())
+  const strict = /\s+then\s+/.test(predicate)
+  const [lhs, rhs] = predicate.split(/\s+(?:before|then)\s+/).map(s => s.trim())
   const parse = t => { const m = t.match(TERM); if (!m) throw new Error(`bad predicate term: ${t}`); return [m[1], m[2]] }
   const a = firstIndex(toolCalls, ...parse(lhs))
   if (rhs === undefined) return { ok: a >= 0, reason: a >= 0 ? `saw ${lhs} at ${a}` : `never saw ${lhs}` }
   const b = firstIndex(toolCalls, ...parse(rhs))
   if (a < 0) return { ok: false, reason: `never saw ${lhs}` }
-  if (b < 0) return { ok: true, reason: `saw ${lhs}; ${rhs} never happened` }
+  if (b < 0) return strict
+    ? { ok: false, reason: `saw ${lhs}, but ${rhs} never happened and this predicate requires it` }
+    : { ok: true, reason: `saw ${lhs}; ${rhs} never happened` }
   return { ok: a < b, reason: `${lhs}@${a} vs ${rhs}@${b}` }
 }
 

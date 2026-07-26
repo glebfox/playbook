@@ -53,7 +53,8 @@ export function validateCase(c) {
   // Parse the predicate at validation time, so a malformed one is caught in Phase 1
   // rather than throwing hours into a full run.
   if (g.type === 'tool-log' && g.predicate) {
-    for (const t of String(g.predicate).split(/\s+before\s+/))
+    // `before` (right side optional) and `then` (right side required) — see grade.mjs.
+    for (const t of String(g.predicate).split(/\s+(?:before|then)\s+/))
       if (!/^saw\([A-Za-z*|]+:.+\)$/.test(t.trim())) e.push(`malformed predicate term: ${t.trim()}`)
   }
   return e

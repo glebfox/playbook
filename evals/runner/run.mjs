@@ -3,7 +3,7 @@ import { readdirSync, readFileSync, writeFileSync, mkdirSync, appendFileSync, ex
 import { join } from 'node:path'
 import { parseCase, validateCase, armsFor } from './schema.mjs'
 import { stage, selfCheck } from './stage.mjs'
-import { invoke, composeRoutingPrompt } from './invoke.mjs'
+import { invoke, composeRoutingPrompt, composeBehavioralPrompt } from './invoke.mjs'
 import { grade } from './grade.mjs'
 
 const arg = (k, d) => { const i = process.argv.indexOf(k); return i > 0 ? process.argv[i + 1] : d }
@@ -18,15 +18,17 @@ const only = arg('--case')
 const onlyArm = arg('--arm')
 if (!runId) { console.error('--run-id is required (e.g. calibration-1, full-1)'); process.exit(2) }
 
-// Isolation now differs by family, because the CLI's verified behavior differs:
-//   routing    — `--safe-mode`: zero hooks, subscription auth intact. Always isolated, no key.
-//   behavioral — needs the fixture's CLAUDE.md discovered, so safe-mode is out. `--setting-sources
-//                project` suppresses hooks but drops subscription credentials, so full isolation
-//                there requires ANTHROPIC_API_KEY. Without one, host hooks fire in those 36 runs.
-const hasApiKey = Boolean(process.env.ANTHROPIC_API_KEY)
+// Both families isolate through `--safe-mode`, which is verified to suppress host hooks while
+// keeping subscription auth. No API key is needed anywhere. Behavioral runs pay for it by having the
+// fixture's CLAUDE.md handed to them in the prompt rather than auto-discovered, because safe-mode
+// suppresses that discovery too — see composeBehavioralPrompt.
+//
+// `--allow-contaminated` opts into the realistic-but-dirty condition instead: host settings load,
+// CLAUDE.md is discovered normally, and hooks fire inside every run. Kept because it is what a real
+// session looks like, defaulted off because it measures the harness as much as the document.
 const allowContaminated = has('--allow-contaminated')
-const isolationOf = family => family === 'routing' ? 'safe-mode' : (hasApiKey ? 'setting-sources' : 'host-settings')
-if (!hasApiKey && allowContaminated) console.warn('WARNING: behavioral runs will load host settings. Hooks fire in every one of them; the contamination is arm-invariant but the skills gate can mask bundle B.')
+const isolationOf = () => allowContaminated ? 'host-settings' : 'safe-mode'
+if (allowContaminated) console.warn('WARNING: host settings will load. Hooks fire in every run; arm-invariant, but the skills gate can push a session to read more and mask bundle B.')
 
 // Preflight: without this a missing or broken CLI produces a full run of `error` verdicts that
 // looks like data. One cheap call up front turns that into one clear line before anything stages.
@@ -73,20 +75,16 @@ for (const c of cases) {
       for (let rep = 1; rep <= (repsOverride ?? reps); rep++) {
         if (alreadyDone.has(`${c.id}|${arm}|${model}|${rep}`)) { skipped++; continue }
         const isolation = isolationOf(c.family)
-        // Refuse to run a contaminated behavioral case by accident: those are the cases that
-        // measure reading behavior, and the skills-gate hook perturbs exactly that.
-        if (isolation === 'host-settings' && !allowContaminated) {
-          console.error(`REFUSING to run behavioral case ${c.id} with host settings loaded — hooks would fire inside it and can mask bundle B.\nEither export ANTHROPIC_API_KEY for real isolation, or pass --allow-contaminated to accept it knowingly.\nRouting cases need neither: they isolate via --safe-mode.`)
-          process.exit(2)
-        }
         const { dir, cleanup } = stage({ suite, arm, world: c.world, baselineSha })
         const bad = selfCheck(dir, arm, c.world)
         if (bad.length) { cleanup(); console.error(`ABORT materialization self-check failed for ${arm}: ${bad.join('; ')}`); process.exit(1) }
         // Routing: one turn, no tools, so the context is assembled into the prompt.
         // Behavioral: the agent explores the staged tree itself.
-        const prompt = c.family === 'routing' ? composeRoutingPrompt(dir, c.prompt, c.world) : c.prompt
+        const prompt = c.family === 'routing'
+          ? composeRoutingPrompt(dir, c.prompt, c.world)
+          : composeBehavioralPrompt(dir, c.prompt, { injectMap: isolation === 'safe-mode' })
         const p = await invoke({ dir, prompt, model, family: c.family, caps: c.caps,
-          jsonSchema: c.family === 'routing' ? SCHEMA : null, isolated: isolation === 'setting-sources' })
+          jsonSchema: c.family === 'routing' ? SCHEMA : null, isolated: isolation === 'safe-mode' })
         const { verdict, reason } = grade(p, c)
         const streamFile = `streams/${c.id}-${arm}-${model}-${rep}.txt`
         writeFileSync(join(outDir, streamFile), p.events.map(e => JSON.stringify(e)).join('\n'))

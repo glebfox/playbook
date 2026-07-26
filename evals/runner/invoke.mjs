@@ -52,6 +52,17 @@ export function composeRoutingPrompt(dir, question, world = existsSync(join(dir,
   return parts.join('\n\n')
 }
 
+// Behavioral counterpart. Under `--safe-mode` the project CLAUDE.md is not auto-discovered, so the
+// arm-owned map is handed over as prompt text; everything else the session must still find itself,
+// which is what the tool-log predicates actually measure. The framing line is deliberately flat —
+// naming the file and its scope, adding no instruction the document did not already give.
+export function composeBehavioralPrompt(dir, task, { injectMap = true } = {}) {
+  if (!injectMap) return task
+  const map = join(dir, 'CLAUDE.md')
+  if (!existsSync(map)) return task
+  return `The project's guidance file, \`CLAUDE.md\`, which applies to this repository:\n\n===== CLAUDE.md =====\n${readFileSync(map, 'utf8').trim()}\n\n===== task =====\n${task}`
+}
+
 // The contract lives here, not in the twelve case files: appending it once by construction is
 // what makes the cases uniform. Twelve hand-copied contracts would drift, and a drifted contract
 // changes what the grader is reading.
@@ -76,11 +87,19 @@ export function buildArgs({ model, family, caps, jsonSchema, isolated }) {
     a.push('--disallowedTools', ROUTING_DENY)
     if (jsonSchema) a.push('--json-schema', jsonSchema)
   } else {
-    // Behavioral runs must discover the fixture's CLAUDE.md normally, so `--safe-mode` is out — it
-    // would disable the very file bundle B edits. `--setting-sources project` suppresses hooks but
-    // drops subscription credentials, so it is usable only with an API key; without one the run
-    // loads host settings and hooks fire. That is the only contaminated layer left.
-    if (isolated) a.push('--setting-sources', 'project')
+    // Behavioral runs default to the same `--safe-mode` isolation, with the fixture's CLAUDE.md
+    // injected into the prompt instead of auto-discovered — verified, with a control word, that
+    // safe-mode suppresses that discovery, while Read/Write/Bash keep working. The predicates
+    // measure what a session reads *besides* the map, so the channel the map arrives through does
+    // not change what is graded. Without this, hooks fire in exactly the cases that measure reading
+    // behavior: the first b01 run was pushed into the brainstorming skill and asked a question
+    // instead of implementing, which measures the host harness rather than the document.
+    //
+    // `--allow-contaminated` keeps the realistic-but-dirty condition available: host settings load,
+    // CLAUDE.md is discovered the normal way, and hooks fire. (An API key plus
+    // `--setting-sources project` would give hook-free auto-discovery — the highest-fidelity option,
+    // and the only one that costs money.)
+    if (isolated) a.push('--safe-mode')
     a.push('--permission-mode', 'acceptEdits')
   }
   return a

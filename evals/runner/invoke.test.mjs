@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { stage } from './stage.mjs'
-import { buildArgs, parseStream, isBroken, composeRoutingPrompt } from './invoke.mjs'
+import { buildArgs, parseStream, isBroken, composeRoutingPrompt, composeBehavioralPrompt } from './invoke.mjs'
 
 const SCHEMA = '{"type":"object","properties":{"destination":{"type":"string"}},"required":["destination"]}'
 
@@ -24,14 +24,32 @@ test('routing args carry verbose, json schema, a budget cap, and safe-mode isola
   assert.equal(a[a.indexOf('--disallowedTools') + 1], '*')
 })
 
-test('behavioral args allow tools, omit the json schema, and never use safe-mode', () => {
+test('behavioral args allow tools, omit the json schema, and isolate without a key', () => {
   const a = buildArgs({ model: 'opus', family: 'behavioral', caps: { budgetUsd: 3 }, isolated: true })
   assert.ok(!a.includes('--json-schema'))
-  assert.ok(a.includes('--permission-mode'))
-  // --safe-mode would disable the fixture's CLAUDE.md, which is the artifact bundle B edits.
-  assert.ok(!a.includes('--safe-mode'))
-  assert.ok(a.includes('--setting-sources'), 'isolated behavioral runs need an API key to suppress hooks')
-  assert.ok(!buildArgs({ model: 'opus', family: 'behavioral', caps: { budgetUsd: 3 }, isolated: false }).includes('--setting-sources'))
+  assert.ok(a.includes('--permission-mode'), 'the agent must be able to write')
+  // safe-mode costs auto-discovery of CLAUDE.md, which composeBehavioralPrompt hands over instead.
+  // It buys zero hooks on subscription auth — no API key anywhere in this suite.
+  assert.ok(a.includes('--safe-mode'))
+  assert.ok(!a.includes('--setting-sources'))
+  // The realistic-but-contaminated condition stays available, deliberately opt-in.
+  assert.ok(!buildArgs({ model: 'opus', family: 'behavioral', caps: { budgetUsd: 3 }, isolated: false }).includes('--safe-mode'))
+})
+
+test('the behavioral prompt hands over the arm-owned map, and can be told not to', () => {
+  const sha = readFileSync('evals/operating-model/arms/BASELINE_SHA', 'utf8').trim()
+  const suite = 'evals/operating-model'
+
+  const b = stage({ suite, arm: 'B', world: 'month-3', baselineSha: sha })
+  const withMap = composeBehavioralPrompt(b.dir, 'Add a rule to the transaction domain.')
+  assert.match(withMap, /## Reading order/, "arm B's edit reaches the model even though safe-mode suppresses discovery")
+  assert.ok(withMap.lastIndexOf('Add a rule to the transaction domain.') > withMap.indexOf('CLAUDE.md'), 'the task comes last')
+  assert.equal(composeBehavioralPrompt(b.dir, 'T', { injectMap: false }), 'T', 'contaminated mode discovers it normally')
+
+  // The baseline map must not carry B's section, or the arm difference would be delivered to both.
+  const base = stage({ suite, arm: 'baseline', world: 'month-3', baselineSha: sha })
+  assert.doesNotMatch(composeBehavioralPrompt(base.dir, 'T'), /## Reading order/)
+  b.cleanup(); base.cleanup()
 })
 
 test('parseStream projects tool calls per tool, including Bash paths', () => {

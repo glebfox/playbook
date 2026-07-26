@@ -41,16 +41,20 @@ What the runner assumes about the `claude` CLI, and how much of it has actually 
 | A relocated `CLAUDE_CONFIG_DIR` keeps auth | **verified false** — credentials follow the config directory, so this does not buy isolation |
 | `--setting-sources project` still loads the project `CLAUDE.md` | **unverified** — needs an API key to test, and only the 36 behavioral runs depend on it |
 
-## Isolation, as actually implemented
+## Isolation: no API key, anywhere
 
-Verification changed this from a single mode into one per family:
+Both layers isolate through `--safe-mode`, which is verified to suppress host hooks while keeping subscription auth. It also suppresses auto-discovery of the project `CLAUDE.md` — confirmed with a control word: under `--safe-mode` the model ignored an instruction planted in `CLAUDE.md`, without it the model obeyed and six hook events fired. So each layer hands the map over itself:
 
-| Layer | Mechanism | Hooks |
-|---|---|---|
-| Routing, 510 runs | `--safe-mode` | none |
-| Behavioral, 36 runs | `--setting-sources project` with an API key, otherwise host settings | none / **they fire** |
+| Layer | Mechanism | Map reaches the model via | Hooks |
+|---|---|---|---|
+| Routing | `--safe-mode`, all tools denied, empty cwd | the pre-assembled prompt | none |
+| Behavioral | `--safe-mode`, tools enabled, staged cwd | `composeBehavioralPrompt` prepends it | none |
 
-`--safe-mode` also disables the project `CLAUDE.md`, skills and plugins, which costs routing nothing — its context is pre-assembled into the prompt. Behavioral runs cannot use it, because the file it disables is the artifact bundle B edits. So without an API key the 36 behavioral runs are the only contaminated layer, and `run.mjs` refuses to run them until `--allow-contaminated` says that is understood. The ledger records `isolationMode` per run and the report prints it.
+The behavioral predicates measure what a session reads *besides* the map, so the channel the map arrives through does not change what is graded — it does slightly change fidelity, since the map arrives as task text rather than as the harness's own project instructions.
+
+Why this matters more than convenience: with host settings loaded, the first `b01` run was pushed by the skills-gate hook into the brainstorming skill, asked a clarifying question and wrote nothing. That is not extra variance, it is a different experiment — the layer would measure the host harness as much as the document.
+
+`--allow-contaminated` keeps that realistic-but-dirty condition available on purpose, defaulted off. The ledger records `isolationMode` per run and the report prints it.
 
 ## Running it
 

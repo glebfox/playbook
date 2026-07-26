@@ -3,7 +3,7 @@
 // has to happen against the real CLI, because only it can tell us whether the CLI behaves as assumed.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { execFileSync } from 'node:child_process'
+import { spawnSync } from 'node:child_process'
 import { readFileSync, existsSync, rmSync, mkdtempSync, symlinkSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
@@ -19,17 +19,15 @@ symlinkSync(resolve('evals/runner/testdata/fake-claude'), join(STUB, 'claude'))
 
 function drive(runId, { env = {}, args = [], expectExit = 0 } = {}) {
   const out = join(SUITE, 'results', runId)
-  let status = 0, stdout = '', stderr = ''
-  try {
-    stdout = execFileSync('node', ['evals/runner/run.mjs', '--suite', SUITE, '--run-id', runId, ...args], {
-      encoding: 'utf8',
-      env: { ...process.env, PATH: `${STUB}:${process.env.PATH}`, ...env },
-    })
-  } catch (e) {
-    status = e.status ?? 1
-    stdout = e.stdout ?? ''
-    stderr = e.stderr ?? ''
-  }
+  // spawnSync, not execFileSync: the latter returns stdout only, so a warning printed on a
+  // successful run is invisible — and warnings are exactly what the contaminated mode must emit.
+  const r = spawnSync('node', ['evals/runner/run.mjs', '--suite', SUITE, '--run-id', runId, ...args], {
+    encoding: 'utf8',
+    env: { ...process.env, PATH: `${STUB}:${process.env.PATH}`, ...env },
+  })
+  const status = r.status ?? 1
+  const stdout = r.stdout ?? ''
+  const stderr = r.stderr ?? ''
   assert.equal(status, expectExit, `run.mjs exit ${status}, expected ${expectExit}\n${stderr}`)
   const ledgerPath = join(out, 'runs.jsonl')
   const records = existsSync(ledgerPath)
@@ -61,16 +59,20 @@ test('a routing case runs across its arms and lands in the ledger', () => {
   cleanup(id)
 })
 
-test('a behavioral case refuses to run contaminated unless told to', () => {
-  const id = 'test-stub-refuse'
+test('behavioral runs isolate by default and only opt into contamination explicitly', () => {
+  const id = 'test-stub-isolation'
   cleanup(id)
-  // Routing needs no flag; behavioral without an API key would run with host hooks firing inside the
-  // very cases that measure reading behavior, so silence there would be the worst outcome.
-  const { records, stderr } = drive(id, { env: { FAKE_MODE: 'behavioral' }, args: ['--case', 'b01', '--reps', '1'], expectExit: 2 })
-  assert.equal(records.length, 0, 'nothing is spent before the refusal')
-  assert.match(stderr, /REFUSING to run behavioral case/)
-  assert.match(stderr, /--allow-contaminated/)
-  assert.match(stderr, /Routing cases need neither/)
+  const env = { FAKE_MODE: 'behavioral', FAKE_TOOLS: JSON.stringify([{ name: 'Edit', input: { file_path: '$CWD/ARCHITECTURE.md' } }]) }
+
+  // Default: no flag, no API key, still isolated — this is what removed the key from the design.
+  const clean = drive(id, { env, args: ['--case', 'b04', '--reps', '1'] })
+  assert.equal(clean.records.length, 3)
+  for (const r of clean.records) assert.equal(r.isolationMode, 'safe-mode')
+  cleanup(id)
+
+  const dirty = drive(id, { env, args: ['--case', 'b04', '--reps', '1', '--allow-contaminated'] })
+  for (const r of dirty.records) assert.equal(r.isolationMode, 'host-settings')
+  assert.match(dirty.stderr + dirty.stdout, /mask bundle B/, 'the dirty condition announces what it costs')
   cleanup(id)
 })
 
@@ -105,17 +107,15 @@ test('a behavioral case grades from the tool log, with absolute paths stripped',
   // and on macOS the staged dir and the child's cwd differ by the /var -> /private/var symlink,
   // which is exactly the case a single-prefix strip would miss.
   const env = { FAKE_MODE: 'behavioral', FAKE_TOOLS: JSON.stringify([{ name: 'Edit', input: { file_path: '$CWD/ARCHITECTURE.md' } }]) }
-  // --allow-contaminated because behavioral runs cannot isolate without an API key, and the driver
-  // refuses to run them contaminated unless told to. Against a stub the distinction is moot.
-  const first = drive(id, { env, args: ['--case', 'b04', '--reps', '1', '--allow-contaminated'] })
+  const first = drive(id, { env, args: ['--case', 'b04', '--reps', '1'] })
   assert.equal(first.records.length, 3, 'b04 targets [A]: baseline, A, ALL — Opus only')
   for (const r of first.records) {
     assert.equal(r.verdict, 'pass', `${r.arm}: ${r.reason}`)
-    assert.equal(r.isolationMode, 'host-settings', 'the ledger records the mechanism, per run')
+    assert.equal(r.isolationMode, 'safe-mode', 'the ledger records the mechanism, per run')
   }
 
   // --resume must not re-spend what the ledger already has.
-  const second = drive(id, { env, args: ['--case', 'b04', '--reps', '1', '--allow-contaminated', '--resume'] })
+  const second = drive(id, { env, args: ['--case', 'b04', '--reps', '1', '--resume'] })
   assert.match(second.stdout, /3 run\(s\) already in/)
   assert.match(second.stdout, /3 skipped as already done/)
   assert.equal(second.records.length, 3, 'no duplicate rows appended')

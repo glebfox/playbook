@@ -44,6 +44,29 @@ test('tool-log ordering compares first occurrences', () => {
   assert.equal(grade(ordered, c).verdict, 'pass')
 })
 
+test('"before" tolerates an absent right side, "then" does not', () => {
+  // The distinction came from a real run: b01's session read decision 0004, stopped to ask a
+  // clarifying question, and wrote nothing. For b01 that is the success state; for b02, which is
+  // told to write a design, the same shape demonstrates nothing and must not pass.
+  const readOnly = P({ toolCalls: [{ name: 'Read', paths: ['docs/decisions/0004-money-integer-cents.md'] }] })
+  assert.equal(grade(readOnly, log('saw(*:docs/decisions/0004-*) before saw(Write|Edit:**)')).verdict, 'pass')
+  const strict = grade(readOnly, log('saw(*:docs/decisions/0004-*) then saw(Write|Edit:**)'))
+  assert.equal(strict.verdict, 'fail')
+  assert.match(strict.reason, /never happened and this predicate requires it/)
+
+  // With the write present, both operators agree — and both still enforce the order.
+  const ordered = P({ toolCalls: [
+    { name: 'Read', paths: ['docs/guidelines/nextjs-runtime.md'] },
+    { name: 'Write', paths: ['docs/increments/active/x/design.md'] },
+  ] })
+  const reversed = P({ toolCalls: [...ordered.toolCalls].reverse() })
+  for (const op of ['before', 'then']) {
+    const pred = log(`saw(*:docs/guidelines/nextjs-runtime.md) ${op} saw(Write|Edit:**/design.md)`)
+    assert.equal(grade(ordered, pred).verdict, 'pass', op)
+    assert.equal(grade(reversed, pred).verdict, 'fail', `${op} must reject write-then-read`)
+  }
+})
+
 test('tool-log matches a Bash path', () => {
   const p = P({ toolCalls: [{ name: 'Bash', paths: ['domain/transaction'] }] })
   assert.equal(grade(p, log('saw(Bash:domain/transaction**)')).verdict, 'pass')
