@@ -13,6 +13,25 @@ Design of record: [DESIGN.md](DESIGN.md). How it was built, task by task: [PLAN.
 
 The isolation mode the golden set was produced in gets recorded here once it exists. It matters: without `ANTHROPIC_API_KEY`, `--setting-sources project` breaks auth, so the suite falls back to loading host settings and host hooks fire inside every run. That contamination is arm-invariant, so it does not bias the deltas — but the skills-gate hook pushes a session to go looking for skills, which can partially substitute for the reading-order edit and **mask bundle B**.
 
+## Verified CLI facts
+
+What the runner assumes about the `claude` CLI, and how much of it has actually been observed. Verified rows were seen in a stream, not remembered.
+
+| Fact | Status |
+|---|---|
+| `-p --output-format stream-json` requires `--verbose` | verified by smoke test before the plan was written |
+| Host hooks fire inside nested runs | **verified** — three `SessionStart` `hook_response` events observed, injecting instructions into the run |
+| `--setting-sources project` suppresses hooks but breaks subscription auth | verified by smoke test |
+| The `system`/`init` event carries `.model` and `.apiKeySource` | **verified** — read `claude-haiku-4-5-20251001` and `none` |
+| A failed-auth run reports `subtype: "success"` with `num_turns: 1` and zero cost | verified, and **extended**: it also carries `is_error: true` on the result and `error: "authentication_failed"` on the assistant event. `isBroken` prefers those two, because they do not depend on the wording of a message |
+| `--allowedTools ''` truly disables tools in a routing run | **unverified** — this is a guess in the plan's own words; if wrong, all 510 routing runs score `error` |
+| `--json-schema` output arrives as assistant text | **unverified** — if wrong, every routing run grades `error` |
+| `--setting-sources project` still loads the project `CLAUDE.md` | **unverified** — if wrong, bundle B's behavioral channel is dead |
+| Budget exhaustion surfaces as a non-`success` subtype | **unverified** — if wrong, cap-hits score `fail` and reintroduce treatment-correlated censoring |
+| `total_cost_usd` is non-zero under subscription auth | **unverified** — if wrong, `isBroken`'s zero-cost heuristic errors every run |
+
+The five unverified rows all need a working login: `sh evals/runner/verify-cli.sh`.
+
 ## Running it
 
 ```bash

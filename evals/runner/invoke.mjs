@@ -62,11 +62,19 @@ export function parseStream(text) {
     try { events.push(JSON.parse(line)) } catch { /* partial or non-JSON line */ }
   }
   const toolCalls = []
-  let answerText = '', model = null, result = null, hookEvents = 0
+  let answerText = '', model = null, result = null, hookEvents = 0, apiKeySource = null
+  // Observed on a real failed run: the CLI puts `error: "authentication_failed"` on the event and
+  // `is_error: true` on the result, alongside `subtype: "success"`. Both are stronger signals than
+  // matching the words "Not logged in", which are wording- and locale-dependent.
+  const errorFlags = []
   for (const e of events) {
+    if (e.error) errorFlags.push(String(e.error))
     if (e.type === 'system') {
       if (String(e.subtype).startsWith('hook')) hookEvents++
-      if (e.subtype === 'init' && e.model) model = e.model
+      if (e.subtype === 'init') {
+        if (e.model) model = e.model
+        if (e.apiKeySource) apiKeySource = e.apiKeySource
+      }
     } else if (e.type === 'assistant') {
       for (const c of e.message?.content ?? []) {
         if (c.type === 'tool_use') {
@@ -76,12 +84,17 @@ export function parseStream(text) {
       }
     } else if (e.type === 'result') result = e
   }
-  return { events, toolCalls, answerText: answerText.trim(), model, result, hookEvents }
+  return { events, toolCalls, answerText: answerText.trim(), model, result, hookEvents, apiKeySource, errorFlags }
 }
 
 export function isBroken(p) {
   if (!p.result) return 'no result event — the run did not complete'
+  const authFlag = (p.errorFlags ?? []).find(f => /auth/i.test(f))
+  if (authFlag) return `auth failure: the CLI reported ${authFlag}`
   if (/not logged in|please run \/login/i.test(p.answerText)) return 'auth failure: CLI reported "Not logged in"'
+  // `subtype: "success"` with `is_error: true` is a real combination, seen on a failed-auth run.
+  // Trusting subtype alone is how a broken run scores as a real answer.
+  if (p.result.is_error) return `run reported is_error with subtype ${p.result.subtype}`
   if (p.result.subtype === 'success' && p.result.total_cost_usd === 0 && p.result.num_turns <= 1)
     return 'suspicious: success with zero cost and one turn — treat as auth or config failure'
   if (p.result.subtype && p.result.subtype !== 'success') return `result subtype ${p.result.subtype}`

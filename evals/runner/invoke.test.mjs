@@ -48,6 +48,34 @@ test('isBroken flags an auth failure that reports success', () => {
   assert.match(isBroken(parseStream(stream)), /auth/i)
 })
 
+test('isBroken catches the auth-failure shape as the CLI actually emits it', () => {
+  // Trimmed from a real nested invocation: three SessionStart hook events, an init carrying the
+  // resolved model and apiKeySource "none", an assistant event flagged authentication_failed, and a
+  // result that is `subtype: "success"` AND `is_error: true` at once.
+  const stream = [
+    '{"type":"system","subtype":"hook_response","hook_name":"SessionStart:startup","outcome":"success"}',
+    '{"type":"system","subtype":"hook_response","hook_name":"SessionStart:startup","outcome":"success"}',
+    '{"type":"system","subtype":"init","model":"claude-haiku-4-5-20251001","apiKeySource":"none"}',
+    '{"type":"assistant","message":{"content":[{"type":"text","text":"Not logged in · Please run /login"}]},"error":"authentication_failed"}',
+    '{"type":"result","subtype":"success","is_error":true,"num_turns":1,"total_cost_usd":0}',
+  ].join('\n')
+  const p = parseStream(stream)
+  assert.equal(p.model, 'claude-haiku-4-5-20251001', 'the init event carries the resolved snapshot')
+  assert.equal(p.apiKeySource, 'none')
+  assert.equal(p.hookEvents, 2, 'host hooks fire inside nested runs')
+  assert.match(isBroken(p), /auth/i)
+  assert.match(isBroken(p), /authentication_failed/, 'the event flag is preferred over the message text')
+})
+
+test('is_error alone is enough, even when the body looks like an answer', () => {
+  const stream = [
+    '{"type":"system","subtype":"init"}',
+    '{"type":"assistant","message":{"content":[{"type":"text","text":"{\\"destination\\":\\"ARCHITECTURE.md\\"}"}]}}',
+    '{"type":"result","subtype":"success","is_error":true,"num_turns":2,"total_cost_usd":0.01}',
+  ].join('\n')
+  assert.match(isBroken(parseStream(stream)), /is_error/)
+})
+
 test('isBroken passes a real run', () => {
   const stream = [
     '{"type":"system","subtype":"init"}',
