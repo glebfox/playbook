@@ -1,5 +1,6 @@
 import { execFile, execFileSync } from 'node:child_process'
-import { readFileSync, existsSync, realpathSync } from 'node:fs'
+import { readFileSync, existsSync, realpathSync, mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 const PATH_RE = /(?:[\w.@-]+\/)+[\w.@*-]+|\b[\w-]+\.(?:md|ts|tsx|json|sh|mjs)\b/g
@@ -19,6 +20,11 @@ const ROUTING_CONTEXT = [
 // in every arm and injecting it would only make the destination more salient for the three cases
 // that expect it, inflating the baseline and biasing bundle A's delta toward null.
 const DAY_1_EXTRA = ['ARCHITECTURE.md']
+
+// Every tool that could add anything to a routing run's context. Verified to hold on Opus, which
+// otherwise reads the staged tree. Listing tools explicitly is unpleasant but it is the only
+// mechanism the CLI offers that actually blocks rather than merely un-pre-approves.
+const ROUTING_DENY = 'Read,Glob,Grep,Bash,BashOutput,WebFetch,WebSearch,Task,TodoWrite,Edit,Write,NotebookEdit,SlashCommand,Skill'
 
 export function composeRoutingPrompt(dir, question, world = existsSync(join(dir, 'docs/specs')) ? 'month-3' : 'day-1') {
   const parts = []
@@ -51,7 +57,12 @@ export function buildArgs({ model, family, caps, jsonSchema, isolated }) {
     // CLAUDE.md, skills and plugins — all irrelevant for routing, because the context is
     // pre-assembled into the prompt. Verified on a real run: 0 hooks, 0 tool calls, schema honored.
     a.push('--safe-mode')
-    a.push('--allowedTools', '')          // one turn, no tools: the context is pre-assembled
+    // `--allowedTools ''` alone is NOT enough, verified the expensive way: Opus read
+    // ARCHITECTURE.md straight out of the staged tree with it set, because that flag governs
+    // permission pre-approval and a read-only tool needs no approval. Haiku happened not to try,
+    // so the gap would have surfaced as ~170 Opus routing runs scoring `error`.
+    a.push('--allowedTools', '')
+    a.push('--disallowedTools', ROUTING_DENY)
     if (jsonSchema) a.push('--json-schema', jsonSchema)
   } else {
     // Behavioral runs must discover the fixture's CLAUDE.md normally, so `--safe-mode` is out — it
@@ -118,7 +129,12 @@ export function isBroken(p) {
 export function invoke({ dir, prompt, model, family, caps, jsonSchema, isolated }) {
   return new Promise(resolve => {
     const args = [...buildArgs({ model, family, caps, jsonSchema, isolated }), prompt]
-    execFile('claude', args, { cwd: dir, timeout: caps.timeoutMs, maxBuffer: 64 * 1024 * 1024 },
+    // A routing run executes in an EMPTY directory. Its context is pre-assembled, so the staged tree
+    // must be unreachable — the second barrier behind --disallowedTools, because a tool call that
+    // slipped through would then find nothing rather than the fixture. Behavioral runs must explore
+    // the tree, so they run in it.
+    const cwd = family === 'routing' ? mkdtempSync(join(tmpdir(), 'routing-cwd-')) : dir
+    execFile('claude', args, { cwd, timeout: caps.timeoutMs, maxBuffer: 64 * 1024 * 1024 },
       (err, stdout) => {
         const p = parseStream(stdout ?? '')
         // Real Read/Write/Edit calls carry ABSOLUTE file_paths, so every projected path starts
@@ -129,9 +145,10 @@ export function invoke({ dir, prompt, model, family, caps, jsonSchema, isolated 
         // /private/var/…. If the CLI reports paths through the realpath while `dir` holds the
         // symlinked form, a single-prefix strip never matches — and it fails invisibly, because
         // the grade tests use pre-stripped fixtures.
-        const prefixes = [...new Set([dir, realpathSync(dir)])].map(d => d.replace(/^\//, '') + '/')
+        const prefixes = [...new Set([cwd, realpathSync(cwd)])].map(d => d.replace(/^\//, '') + '/')
         const strip = x => { for (const pre of prefixes) if (x.startsWith(pre)) return x.slice(pre.length); return x }
         for (const c of p.toolCalls) c.paths = c.paths.map(strip)
+        if (cwd !== dir) rmSync(cwd, { recursive: true, force: true })
         p.timedOut = Boolean(err && err.killed)
         p.args = args
         resolve(p)

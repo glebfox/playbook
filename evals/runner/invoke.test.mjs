@@ -16,6 +16,12 @@ test('routing args carry verbose, json schema, a budget cap, and safe-mode isola
   // rather than from --setting-sources project, which drops the credentials with the hooks.
   assert.ok(a.includes('--safe-mode'))
   assert.ok(!a.includes('--setting-sources'), 'no API key should be needed to isolate a routing run')
+  // --allowedTools '' only withholds pre-approval; a read-only tool needs none. Opus was observed
+  // reading ARCHITECTURE.md out of the staged tree with it set, so the deny list is what blocks.
+  assert.ok(a.includes('--disallowedTools'))
+  const deny = a[a.indexOf('--disallowedTools') + 1]
+  for (const t of ['Read', 'Glob', 'Grep', 'Bash', 'WebFetch', 'WebSearch', 'Task'])
+    assert.ok(deny.split(',').includes(t), `${t} must be denied in a routing run`)
 })
 
 test('behavioral args allow tools, omit the json schema, and never use safe-mode', () => {
