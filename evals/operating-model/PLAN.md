@@ -89,7 +89,9 @@ Nothing in this phase calls a model. Its deliverables are checked by `git log`, 
 - Consumes: nothing.
 - Produces: a directory tree at `fixture/ledger/`. Every later task depends on the *facts* asserted by `assert-fixture.mjs`, not on prose wording.
 
-Two files are lifted from the panel review rather than authored fresh — copy them verbatim, they are already realistic and measured:
+Four files are lifted from the panel review rather than authored fresh. **They are realistic but not usable as-is** — see Step 1c. The panel's fixture documented the outcomes of the panel's scenarios, and the routing cases were derived from those same scenarios, so five of the twelve facts are already written into these files. `assert-fixture.mjs` fails 6 checks on them until the surgery in Step 1c is applied; that failure is the system working, not a bug to route around.
+
+The vendored sources:
 `/private/tmp/claude-502/-Users-gorelov-Developer-Other-playbook/1e2ffbb1-749d-4f00-aa39-c33a11f6c25f/scratchpad/s4-month3/ARCHITECTURE.md`, `.../s4-month3/docs/specs/domains/transaction.md`, `.../s4-month3/docs/tests/domains/transaction.md`, `.../s4-month3/docs/decisions/0004-money-integer-cents.md`. **Copy these first** — the scratchpad is session-scoped and will be deleted.
 
 The prose files are written to a target length, but what makes them correct is the fact list below. These facts are load-bearing: a case's expected answer depends on each one, so `assert-fixture.mjs` checks them mechanically.
@@ -130,6 +132,55 @@ Expected: `review-{skeptic,advocate,practitioner}.md` and two `day-1-*.md` files
 
 `reference/day-1-ARCHITECTURE.md` and `reference/day-1-CLAUDE.md` are the panel's day-1 artifacts; use them as the shape for the `day-1` world, not as fixture content directly.
 
+- [ ] **Step 1c: Operate on the four lifted files**
+
+Every item below is required by an assertion in Step 2. Line numbers are from the vendored files as committed.
+
+**`ARCHITECTURE.md` — the `## Architectural conventions` block (L25–34):**
+
+| Line | Action | Why |
+|---|---|---|
+| L27 integer cents, cites 0004 | keep | required PRESENT fact |
+| L28 `domain/` may not import from `app/`, `services/`, `db/` | reword — drop `services/` | the layout block names no `services/`; leaving it describes a directory that does not exist |
+| L29 Mutations go through Server Actions | **delete** | states r02's fact |
+| L30 Every Server Action validates with Zod | **delete** | contains "Server Action"; r02's absence check is text-level |
+| L31 timestamps `timestamptz` UTC, cites 0002 | keep | harmless; needs 0002 to exist |
+| L32 Rounding is half-up…, cites 0009 | **delete** | states r01's fact — *and* cites 0009, which in this fixture is the import-key decision. Deleting it removes both the collision and the only citation of 0009, which is what makes 0009 the uncited decision arm B's inbound-link invariant repairs |
+| L33 no ORM lazy loading | keep | — |
+| L34 Errors cross the **Server Action** boundary…, cites 0008 | reword to "cross the **domain** boundary" | the fact is required; the phrase "Server Action" is not |
+
+Then rename nothing: the assertions target the file's real headers, `## Architectural conventions` and `## Build / run / test`. The operating model's own text says "build/run/test", so the realistic header wins over a tidier one. **The command block is `pnpm`**, so `b04`'s landed command is `pnpm db:seed`, alongside the existing `db:generate` and `db:migrate` — not `npm run db:seed`.
+
+**`docs/specs/domains/transaction.md`:**
+
+- **Delete L22** (`occurredAt` more than 1 day in the future is rejected). It states r04's fact *and contradicts r04's prompt*, which asserts a flat prohibition while this allows a one-day tolerance.
+- **Delete L31** (`importKey` is unique per account when non-null). States r07's fact.
+- **Delete L40** (Dedupe key construction: see decision 0007). It pre-cites the import-key rationale, and r07 must reach that decision through routing rather than a pointer already in view.
+- The file is now 6 behaviors and 2 invariants against the required 7 and 3. Add one of each that no case routes: behavior — *"Balances are derived at read time, never stored; a running balance is computed from the non-deleted set."*; invariant — *"`amountCents` is signed: debits negative, credits positive, and the sign is never inferred from the category."*
+
+**`docs/tests/domains/transaction.md` (12 rows, 3 gaps):**
+
+- **Delete L17** (re-categorization idempotence gap). States r10's fact.
+- **Delete L9** (`future occurredAt > 1d rejected`) and **L13** (`importKey` uniqueness) — they are coverage rows for behaviors just removed from the spec, and a coverage row without a behavior breaks the pair the model requires to stay symmetric.
+- Restore the counts with three rows that route nothing: *"balance derived at read time"* — automated integration; *"signed amounts survive an edit"* — automated unit; *"balance derivation over 100k rows"* — **gap**, not measured, performance rather than correctness.
+- Result: 12 rows, 3 gaps, and no row for categorization idempotence — which is `r10`'s premise, a behavior the spec states whose coverage status is undocumented.
+
+**`docs/decisions/` — make the log contiguous.** After the surgery, `ARCHITECTURE.md` cites 0002, 0004 and 0008 and the spec cites 0004; the vendored log holds only 0004 and 0009. A decision log with holes is not a log — the sequential number is the citable handle, so a missing number is a dangling reference. Author seven short stubs (Status / Context / Decision / Consequences, ~10 lines each) so the log runs 0001–0009:
+
+| # | Topic | Cited from |
+|---|---|---|
+| 0001 | `domain/` kept free of framework imports | — |
+| 0002 | timestamps stored as `timestamptz`, always UTC | `ARCHITECTURE.md` |
+| 0003 | Vitest over Jest | — |
+| 0004 | money as integer cents *(vendored, real)* | `ARCHITECTURE.md`, the spec |
+| 0005 | Auth.js rather than a hand-rolled session | — |
+| 0006 | input validated at the trust boundary with Zod | — |
+| 0007 | soft delete rather than hard delete | — |
+| 0008 | errors as discriminated result unions | `ARCHITECTURE.md` |
+| 0009 | `importKey` as a content hash, not the bank id *(vendored, real)* | **nothing — deliberately uncited** |
+
+None may mention Prisma: `r09` routes that rationale and `TREE_FACTS` asserts its absence across the whole log. Nine slugs also make edit 4's "the slugs *are* the index" mechanic a real test rather than a trivial one — a four-entry log understates what scanning costs.
+
 - [ ] **Step 2: Write the failing fixture assertion**
 
 Create `evals/operating-model/fixture/assert-fixture.mjs`:
@@ -140,6 +191,12 @@ import { join } from 'node:path'
 
 const root = process.argv[2] ?? new URL('./ledger/', import.meta.url).pathname
 const read = p => existsSync(join(root, p)) ? readFileSync(join(root, p), 'utf8') : null
+
+// Bullets inside one `## Section`, stopping at the next heading.
+const countBullets = (s, heading) => {
+  const body = s.split(new RegExp(`^##\\s+${heading}\\s*$`, 'm'))[1]?.split(/^##\s/m)[0] ?? ''
+  return (body.match(/^-\s/gm) ?? []).length
+}
 
 // Two classes of entry, both load-bearing:
 //   PRESENT — the fixture must state this, because a case's expected destination depends on it
@@ -152,12 +209,18 @@ const FACTS = [
   // --- PRESENT ---
   ['ARCHITECTURE.md', 'integer-cents convention cites decision 0004', s => /integer cents/i.test(s) && /decision 0004/.test(s)],
   ['ARCHITECTURE.md', 'layout block names app/, domain/, lib/, db/', s => ['app/', 'domain/', 'lib/', 'db/'].every(d => s.includes(d))],
-  ['ARCHITECTURE.md', 'has a Commands block (b04 consolidates a new command into it)', s => /^##\s+Commands/m.test(s)],
+  ['ARCHITECTURE.md', 'has the command block b04 consolidates into', s => /^##\s+Build \/ run \/ test/m.test(s)],
+  ['ARCHITECTURE.md', 'has a conventions block', s => /^##\s+Architectural conventions/m.test(s)],
+  ['ARCHITECTURE.md', 'domain/ isolation stated without naming a services/ that does not exist', s => /domain\/ may not import/.test(s) && !/services\//.test(s)],
+  ['ARCHITECTURE.md', 'errors cross the domain boundary as a result union', s => /result union/.test(s)],
   ['docs/conventions.md', 'states some commit message format, so it is the plausible home for r11', s => /commit/i.test(s)],
   ['docs/guidelines/nextjs-runtime.md', 'states the node-vs-edge constraint (b02 must be able to find it)', s => /edge/i.test(s) && /node/i.test(s)],
   ['docs/decisions/0004-money-integer-cents.md', 'records the rejected NUMERIC alternative', s => /NUMERIC/.test(s) && /decimal/i.test(s)],
   ['docs/decisions/0009-import-key.md', 'records the partial unique index', s => /partial unique index/i.test(s)],
-  ['docs/specs/domains/transaction.md', '7 behaviors and 3 invariants', s => (s.match(/^[-*|]/gm) ?? []).length >= 10],
+  // Counted per section, not across the file: the spec's `## Shape` table alone matches
+  // /^[-*|]/ two dozen times, so a whole-file count passes on a spec with no invariants at all.
+  ['docs/specs/domains/transaction.md', '7 behaviors under ## Behavior', s => countBullets(s, 'Behavior') >= 7],
+  ['docs/specs/domains/transaction.md', '3 invariants under ## Invariants', s => countBullets(s, 'Invariants') >= 3],
   ['docs/specs/domains/transaction.md', 'Extension points name domain/transaction/rules.ts', s => /rules\.ts/.test(s)],
   ['docs/specs/domains/budget.md', 'zero is a legitimate limit', s => /zero/i.test(s) && /limit/i.test(s)],
   ['docs/specs/domains/budget.md', 'a budget may start in the future (r04 contagion landing site)', s => /future/i.test(s)],
@@ -179,15 +242,30 @@ const FACTS = [
   ['docs/conventions.md', 'r11: no imperative-mood or 60-character rule', s => !/imperative/i.test(s) && !/60/.test(s)],
   ['docs/specs/domains/transaction.md', 'r12: no import-batch reference', s => !/batch/i.test(s)],
   ['docs/tests/domains/transaction.md', 'r10: no re-categorization row', s => !/re-categoriz/i.test(s)],
+  ['docs/tests/domains/transaction.md', 'no coverage row for a behavior the spec no longer states', s => !/future/i.test(s) && !/importKey/.test(s)],
+  ['docs/tests/domains/transaction.md', '12 coverage rows', s => (s.match(/^\|/gm) ?? []).length >= 14],
   ['docs/specs/domains/transaction.md', 'no reconcile headers — those are arm-owned, written by history.sh', s => !/^Reconciled:/m.test(s) && !/^Source:/m.test(s)],
   ['docs/decisions/0009-import-key.md', 'no Governs: line — arm-owned', s => !/^Governs:/m.test(s)],
 ]
 
 // r09's absence is a whole-tree property rather than a single file: no decision may already
 // record the Drizzle-vs-Prisma rationale.
+// `withFileTypes` + isFile matters: a `drafts/` subdirectory would make readFileSync throw and
+// kill the whole assertion with a stack trace instead of printing a FAIL line.
+const mdFiles = dir => readdirSync(dir, { withFileTypes: true }).filter(e => e.isFile() && e.name.endsWith('.md')).map(e => e.name)
+
 const TREE_FACTS = [
   ['docs/decisions', 'r09: no Prisma rationale anywhere in the decision log', dir =>
-    !readdirSync(dir).some(f => /prisma/i.test(readFileSync(join(dir, f), 'utf8')))],
+    !mdFiles(dir).some(f => /prisma/i.test(readFileSync(join(dir, f), 'utf8')))],
+  ['docs/decisions', 'the log is contiguous 0001-0009 — a missing number is a dangling citation', dir => {
+    const ns = mdFiles(dir).map(f => Number(f.slice(0, 4))).sort((a, b) => a - b)
+    return ns.length === 9 && ns.every((n, i) => n === i + 1)
+  }],
+  ['docs/decisions', '0009 is cited by nothing in the arm-independent fixture', dir => {
+    const others = ['ARCHITECTURE.md', 'docs/specs/domains/transaction.md', 'docs/specs/domains/budget.md',
+      'docs/tests/domains/transaction.md', 'docs/vision.md', 'docs/roadmap.md']
+    return !others.some(p => /decision 0009/.test(read(p) ?? ''))
+  }],
 ]
 
 let failed = 0
@@ -230,7 +308,22 @@ package.json
 - [ ] **Step 5: Run the assertion until green**
 
 Run: `node evals/operating-model/fixture/assert-fixture.mjs`
-Expected: `OK 30 facts`, exit 0. Fifteen are PRESENT assertions; fifteen are ABSENT — one per routing case plus the arm-owned artifacts, so that a later fixture edit cannot silently disarm a case by documenting the fact it was supposed to route.
+Expected: `OK 38 facts`, exit 0 — after Step 1c. Before the surgery it fails 6 checks on the lifted files, which is the assertion set doing its job.
+
+Roughly half are PRESENT and half ABSENT, with one ABSENT row per routing case, so a later fixture edit cannot silently disarm a case by documenting the fact it was meant to route. Three are whole-tree properties of the decision log: no Prisma anywhere, contiguous numbering, and 0009 uncited.
+
+- [ ] **Step 5b: Assert the mid-increment overlay**
+
+`assert-fixture.mjs` roots at `ledger/` and never looks at the overlay, so `b04`'s world is unverified. Run the same script against a composed copy:
+
+```bash
+rm -rf /tmp/mi && cp -R evals/operating-model/fixture/ledger /tmp/mi
+cp -R evals/operating-model/fixture/mid-increment/. /tmp/mi/
+node evals/operating-model/fixture/assert-fixture.mjs /tmp/mi
+test -f /tmp/mi/docs/increments/active/2026-07-20-seed-and-backdate/design.md && grep -q 'db:seed' /tmp/mi/package.json && grep -q 'next' /tmp/mi/package.json && echo "OK overlay"
+```
+
+Expected: `OK 38 facts` (the overlay adds nothing a case routes) then `OK overlay`. The two `grep`s are the point: `cpSync` **replaces** `package.json` rather than merging it, so the overlay's copy must be the base file plus the `db:seed` script and byte-identical otherwise. An overlay carrying only a `scripts` block would strand the staged world with no dependencies, and an agent asked to consolidate a finished increment in a project with no framework listed may reasonably balk.
 
 - [ ] **Step 6: Commit**
 
@@ -348,7 +441,10 @@ if [ "$MARKERS" = "1" ]; then
   } > "$TMP"
   mv "$TMP" "$SPEC"
 
-  printf '\nThe importKey uniqueness invariant is settled — see decision 0009.\n' >> "$SPEC"
+  # Cites without stating. The obvious wording — "the importKey uniqueness invariant is settled,
+  # see decision 0009" — would inject r07's routed fact straight into r07's own context in arms
+  # B and ALL, changing its answer landscape for a reason unrelated to any routing rule.
+  printf '\nImport identity: see decision 0009.\n' >> "$SPEC"
 
   for D in docs/decisions/0004-money-integer-cents.md docs/decisions/0009-import-key.md; do
     TMP=$(mktemp)
@@ -860,7 +956,11 @@ grade:
 We are moving data access out of the route handlers into `db/repositories/`. Three of the eight handlers have moved; the other five still call Drizzle directly. From here on, anything new goes through a repository.
 ```
 
-Forbidden words: *convention, intended, plan, architecture*. Note the fixture describes no `db/repositories/` layer, so this is a live change of state rather than a restatement.
+Forbidden words: *convention, intended, plan, architecture*. The fixture describes no `db/repositories/` layer, so this is a live change of state rather than a restatement.
+
+**This is the most arguable of the twelve on the baseline document, and the case file should carry the reason so calibration reviewers do not relitigate it per rep.** An in-progress migration looks like increment work, and an active increment's design is authoritative while it runs — so `docs/increments/active/.../design.md` is a defensible-looking answer. It is still wrong, on durability: the directive "anything new goes through a repository" outlives the migration, while L12 makes designs mortal — they stop being the source of truth the moment the increment closes. Filing a standing directive in a document scheduled to die is exactly the misfiling the model exists to prevent. The `month-3` world also ships an empty `active/`, so that answer requires inventing a directory the tree shows does not exist.
+
+Note the `forbid` list cannot poison this case either way: an `docs/increments/**` answer fails by expect-mismatch whether or not it is listed, so `forbid` only documents intent. And either failure mode on baseline — picking the defensible-but-wrong home, or getting lost in L11 — is an instance of the predicted failure that S5(d)/F5 describes, so the delta against arm C measures edit 9 regardless of which one the model falls into.
 
 ```markdown
 ---
@@ -995,7 +1095,7 @@ Bodies are task instructions rather than fact statements, and they are given to 
 
 `b04` uses `world: month-3-mid-increment` and needs two things the other worlds must not have.
 
-**An increment in `active/`** — `docs/increments/2026-07-20-seed-and-backdate/{design.md,plan.md}` — whose landed work contains at least one fact whose only legal home is `ARCHITECTURE.md`. Make it a **new build command**: the increment added `npm run db:seed`, plus a transaction behavior (backdating an imported transaction re-runs the dedupe check). Consolidation must then touch the spec *and* `ARCHITECTURE.md`'s `## Commands` block — and arm A names `ARCHITECTURE.md` in the write paths while baseline does not, which is the whole measurement. A purely unit-behavioral diff would make arm A's *correct* consolidation score fail.
+**An increment in `active/`** — `docs/increments/2026-07-20-seed-and-backdate/{design.md,plan.md}` — whose landed work contains at least one fact whose only legal home is `ARCHITECTURE.md`. Make it a **new build command**: the increment added `pnpm db:seed` — the fixture's command block is pnpm, alongside the existing `db:generate` and `db:migrate` — plus a transaction behavior (backdating an imported transaction re-runs the dedupe check). Consolidation must then touch the spec *and* `ARCHITECTURE.md`'s `## Commands` block — and arm A names `ARCHITECTURE.md` in the write paths while baseline does not, which is the whole measurement. A purely unit-behavioral diff would make arm A's *correct* consolidation score fail.
 
 **Its own world**, because an increment sitting in `active/` must not be visible to `b02` and `b03`. `b02` is told to write a new design into `active/`, and a pre-existing directory there would have it either create a second one or stop to consolidate the first — and "more than one increment in `active/`" is exactly the behavior this batch parked (edit 10), so the fixture must not force a session into it. Add `month-3-mid-increment` to the schema's `WORLDS`, and in `stage()` build it as `month-3` plus that increment directory plus the landed code (`db/seed.ts`, the command in `package.json`). Nothing is removed.
 
@@ -1018,10 +1118,14 @@ The four predicates in full:
 |---|---|
 | b01 | `saw(*:docs/decisions/0004-*) before saw(Write\|Edit:**)` |
 | b02 | `saw(*:docs/guidelines/nextjs-runtime.md) before saw(Write\|Edit:**/design.md)` |
-| b03 | `saw(Bash:*git*log*domain/transaction*)` |
+| b03 | `saw(Bash:**git**log**domain/transaction**)` |
 | b04 | `saw(Write\|Edit:ARCHITECTURE.md)` |
 
-`b03`'s glob matches the Bash **command string**, not just a projected path — otherwise `ls domain/transaction` or `cat domain/transaction/rules.ts` would count as a drift check, which would over-credit arm B and invert the design's stated conservatism. It stays deliberately narrow: drift noticed some other way scores as a miss.
+`b03`'s glob matches the Bash **command string**, not just a projected path — otherwise `ls domain/transaction` or `cat domain/transaction/rules.ts` would count as a drift check, over-crediting arm B and inverting the design's stated conservatism. It stays deliberately narrow on the tool: drift noticed some other way scores as a miss.
+
+Every segment is `**`, not `*`, and that is not cosmetic. A single `*` compiles to `[^/]*` and cannot cross a slash, so `*git*log*domain/transaction*` rejects all four realistic spellings of the check — `-- domain/transaction/` with a trailing slash, `-- domain/transaction lib/money.ts` naming both `Source:` paths (the *most* correct form), a quoted `"domain/transaction/**"`, and `git log -p domain/transaction/rules.ts`. The `**` form accepts all four and still rejects `ls domain/transaction`.
+
+`git diff` is deliberately **not** matched. The predicate is anchored on `log` because broadening to any `git` invocation would credit the `git add` and `git commit` an implementing agent runs anyway, which would make the case pass for work unrelated to drift.
 
 - [ ] **Step 7: Validate all cases**
 
@@ -1088,7 +1192,7 @@ test('baseline stage has the vendored model and no reconcile markers', () => {
   assert.ok(existsSync(join(dir, 'CLAUDE.md')))
   const spec = readFileSync(join(dir, 'docs/specs/domains/transaction.md'), 'utf8')
   assert.doesNotMatch(spec, /^Reconciled:/m)
-  assert.deepEqual(selfCheck(dir, 'baseline'), [])
+  assert.deepEqual(selfCheck(dir, 'baseline', 'month-3'), [])
   cleanup()
 })
 
@@ -1096,20 +1200,36 @@ test('arm B stage has reconcile markers and the reading order', () => {
   const { dir, cleanup } = stage({ suite, arm: 'B', world: 'month-3', baselineSha: sha })
   assert.match(readFileSync(join(dir, 'docs/specs/domains/transaction.md'), 'utf8'), /^Reconciled:/m)
   assert.match(readFileSync(join(dir, 'CLAUDE.md'), 'utf8'), /## Reading order/)
-  assert.deepEqual(selfCheck(dir, 'B'), [])
+  assert.deepEqual(selfCheck(dir, 'B', 'month-3'), [])
   cleanup()
 })
 
 test('selfCheck catches a marker leaking into the baseline', () => {
   const { dir, cleanup } = stage({ suite, arm: 'B', world: 'month-3', baselineSha: sha })
-  assert.ok(selfCheck(dir, 'baseline').length > 0, 'a B tree checked as baseline must fail')
+  assert.ok(selfCheck(dir, 'baseline', 'month-3').length > 0, 'a B tree checked as baseline must fail')
   cleanup()
 })
 
-test('day-1 world contains only whitelisted files', () => {
-  const { dir, cleanup } = stage({ suite, arm: 'A', world: 'day-1', baselineSha: sha })
-  assert.ok(!existsSync(join(dir, 'docs/specs')), 'day-1 has no specs')
-  assert.ok(existsSync(join(dir, 'docs/vision.md')))
+test('day-1 world contains only whitelisted files, and the status line is arm-owned', () => {
+  const a = stage({ suite, arm: 'A', world: 'day-1', baselineSha: sha })
+  assert.ok(!existsSync(join(a.dir, 'docs/specs')), 'day-1 has no specs, and no empty specs directory either')
+  assert.ok(existsSync(join(a.dir, 'docs/vision.md')))
+  assert.match(readFileSync(join(a.dir, 'ARCHITECTURE.md'), 'utf8'), /^Status: nothing built yet/m)
+  assert.deepEqual(selfCheck(a.dir, 'A', 'day-1'), [])
+  a.cleanup()
+
+  const b = stage({ suite, arm: 'baseline', world: 'day-1', baselineSha: sha })
+  assert.doesNotMatch(readFileSync(join(b.dir, 'ARCHITECTURE.md'), 'utf8'), /^Status: nothing built yet/m)
+  assert.ok(selfCheck(b.dir, 'A', 'day-1').length > 0, 'a baseline tree checked as arm A must fail on the status line')
+  b.cleanup()
+})
+
+test('mid-increment world adds an active increment and keeps the base package.json', () => {
+  const { dir, cleanup } = stage({ suite, arm: 'A', world: 'month-3-mid-increment', baselineSha: sha })
+  assert.ok(existsSync(join(dir, 'docs/increments/active/2026-07-20-seed-and-backdate/design.md')))
+  const pkg = readFileSync(join(dir, 'package.json'), 'utf8')
+  assert.match(pkg, /db:seed/, 'the overlay adds the command b04 must consolidate')
+  assert.match(pkg, /next/, 'and it is the full base file, not a scripts-only fragment')
   cleanup()
 })
 ```
@@ -1198,7 +1318,7 @@ const ARTIFACTS = [
 // the operating model's own worked example. Decision 0009 is the uncited one — that absence is
 // the amnesia condition edit 4's inbound-link invariant repairs, so its citation is arm-owned.
 
-export function selfCheck(dir, arm) {
+export function selfCheck(dir, arm, world) {
   const errs = []
   for (const [rel, re, label, arms] of ARTIFACTS) {
     const abs = join(dir, rel)
@@ -1210,6 +1330,18 @@ export function selfCheck(dir, arm) {
   }
   if (!existsSync(join(dir, 'docs/operating-model.md'))) errs.push('vendored operating model missing')
   if (!existsSync(join(dir, 'CLAUDE.md'))) errs.push('CLAUDE.md missing')
+
+  // The remaining two arm-owned classes. `world` is a parameter because the day-1 status line
+  // exists in no other world, and without it this function cannot check the row DESIGN claims
+  // it checks.
+  const claude = existsSync(join(dir, 'CLAUDE.md')) ? readFileSync(join(dir, 'CLAUDE.md'), 'utf8') : ''
+  if (/## Reading order/.test(claude) !== MARKER_ARMS.has(arm))
+    errs.push(`arm ${arm}: the concrete CLAUDE.md carries the reading order iff the arm is B or ALL`)
+  if (world === 'day-1') {
+    const arch = readFileSync(join(dir, 'ARCHITECTURE.md'), 'utf8')
+    if (/^Status: nothing built yet/m.test(arch) !== STATUS_LINE_ARMS.has(arm))
+      errs.push(`arm ${arm}: the day-1 status line is present iff the arm is A or ALL`)
+  }
   return errs
 }
 ```
@@ -1217,7 +1349,7 @@ export function selfCheck(dir, arm) {
 - [ ] **Step 4: Run the test to verify it passes**
 
 Run: `node --test evals/runner/stage.test.mjs`
-Expected: 4 passing tests.
+Expected: 5 passing tests.
 
 - [ ] **Step 5: Commit**
 
@@ -1333,7 +1465,7 @@ Expected: FAIL — module not found.
 
 ```javascript
 import { execFile, execFileSync } from 'node:child_process'
-import { readFileSync, existsSync } from 'node:fs'
+import { readFileSync, existsSync, realpathSync } from 'node:fs'
 import { join } from 'node:path'
 
 const PATH_RE = /(?:[\w.@-]+\/)+[\w.@*-]+|\b[\w-]+\.(?:md|ts|tsx|json|sh|mjs)\b/g
@@ -1365,7 +1497,7 @@ export function composeRoutingPrompt(dir, question) {
 // changes what the grader is reading.
 const OUTPUT_CONTRACT = `Following the documentation and workflow model this project uses, decide where this fact belongs.
 
-It has exactly one home. Reply with a JSON object and nothing else: {"destination": "<repository-relative path>"}. Give the path of a single file — the one that should hold this fact, whether or not that file exists yet. If the model gives the fact no legal home at all, answer {"destination": "NONE"}.`
+It has exactly one home. Reply with a JSON object and nothing else: {"destination": "<repository-relative path>"}. Give the path of a single file — the one that should hold this fact, whether or not that file exists yet. If the documentation model gives the fact no legal home at all, answer {"destination": "NONE"}.`
 
 export function buildArgs({ model, family, caps, jsonSchema, isolated }) {
   const a = ['-p', '--model', model, '--output-format', 'stream-json', '--verbose']
@@ -1422,8 +1554,14 @@ export function invoke({ dir, prompt, model, family, caps, jsonSchema, isolated 
         // Real Read/Write/Edit calls carry ABSOLUTE file_paths, so every projected path starts
         // with the staging directory. Strip it here, where `dir` is known — otherwise root-level
         // files (ARCHITECTURE.md, CLAUDE.md) never match any glob and b04 is silently zeroed.
-        const prefix = dir.replace(/^\//, '') + '/'
-        for (const c of p.toolCalls) c.paths = c.paths.map(x => x.startsWith(prefix) ? x.slice(prefix.length) : x)
+        //
+        // Two prefixes, not one: on macOS `tmpdir()` returns /var/folders/…, a symlink to
+        // /private/var/…. If the CLI reports paths through the realpath while `dir` holds the
+        // symlinked form, a single-prefix strip never matches — and it fails invisibly, because
+        // the grade tests use pre-stripped fixtures.
+        const prefixes = [...new Set([dir, realpathSync(dir)])].map(d => d.replace(/^\//, '') + '/')
+        const strip = x => { for (const pre of prefixes) if (x.startsWith(pre)) return x.slice(pre.length); return x }
+        for (const c of p.toolCalls) c.paths = c.paths.map(strip)
         p.timedOut = Boolean(err && err.killed)
         p.args = args
         resolve(p)
@@ -1761,7 +1899,7 @@ for (const c of cases) {
     for (const [model, reps] of Object.entries(c.reps)) {
       for (let rep = 1; rep <= (repsOverride ?? reps); rep++) {
         const { dir, cleanup } = stage({ suite, arm, world: c.world, baselineSha })
-        const bad = selfCheck(dir, arm)
+        const bad = selfCheck(dir, arm, c.world)
         if (bad.length) { cleanup(); console.error(`ABORT materialization self-check failed for ${arm}: ${bad.join('; ')}`); process.exit(1) }
         // Routing: one turn, no tools, so the context is assembled into the prompt.
         // Behavioral: the agent explores the staged tree itself.

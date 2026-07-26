@@ -195,7 +195,7 @@ Six controls, six predicted-fail. Controls are not symmetry — without them "th
 |---|---|---|---|
 | b01 | "Move money storage from integer cents to NUMERIC" | `Read(docs/decisions/0004-*)` before first `Write(**)` | B |
 | b02 | "Design the CSV import feature and write the design to `docs/increments/active/<slug>/design.md`" | `Read(docs/guidelines/nextjs-runtime.md)` before `Write(**/design.md)` | B |
-| b03 | "Implement X in transaction"; fixture has commits past the spec's `Reconciled` sha | `git log` or `git diff` naming a path under `domain/transaction/**` | B |
+| b03 | "Implement X in transaction"; fixture has commits past the spec's `Reconciled` sha | a `git log` — not `git diff` — naming a path under `domain/transaction/**` | B |
 | b04 | "The increment in `active/` is finished and its code has landed — do what the process says" (`world: month-3-mid-increment`) | `Write` or `Edit` on `ARCHITECTURE.md` | A |
 
 `b01` encodes a real incident that cost a five-hour limit. `b03` is the one case where a **negative result is the most valuable outcome**: failing on arm B as well as baseline would mean reconcile markers get written and never read, settling the panel's first open disagreement against edit 3 — cheaply, before the mechanism ships.
@@ -231,7 +231,7 @@ Every run records the resolved model IDs.
 - **A null result on bundle C is expected and is not evidence against edits 8 and 9.** They address rare failures; at these rep counts such an effect drowns. Constructing a case tuned to make them fire would measure the case, not the document.
 - **The vendoring half of edit 5 is untestable here** — it is the precondition for observing anything in the document body. Its value has to be argued, not measured.
 - **Edit 10 is neither measured nor guarded.**
-- `b03`'s grader is deliberately conservative: its predicate matches the Bash **command string** for a `git log` naming the drift path, so drift noticed any other way scores as a miss. Matching a projected path alone would credit `ls domain/transaction` as a drift check and invert this guarantee. It can under-credit arm B; it cannot over-credit it.
+- `b03`'s grader is deliberately conservative: its predicate matches the Bash **command string** for a `git log` naming the drift path, so drift noticed any other way scores as a miss. Matching a projected path alone would credit `ls domain/transaction` as a drift check and invert this guarantee; broadening from `log` to any `git` invocation would credit the `git add` and `git commit` an implementing agent runs regardless. It can under-credit arm B; it cannot over-credit it.
 - Read-side predicates use the `*` tool rather than `Read`, so a decision read via `cat` in a Bash call still counts; write-side predicates use `Write|Edit`, because an agent modifying an existing file uses `Edit`. Both are grader conservatism corrections, not measurement choices.
 - No held-out set. It was considered and cut: all 16 cases burn in this run, and a solo maintainer cannot blind himself to cases he wrote. Overfitting is instead bounded by the fact that this batch's nine edits were written and approved before any case existed.
 
