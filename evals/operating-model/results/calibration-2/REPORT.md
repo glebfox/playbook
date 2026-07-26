@@ -1,0 +1,55 @@
+## haiku
+
+| case | predicts | baseline | A | B | C | ALL |
+|---|---|---|---|---|---|---|
+| r01-money-rounding-home | fail-on-baseline | 4/10 | 2/3 (+27) | — | — | 1/1 (+60) |
+| r02-server-actions-home | fail-on-baseline | 1/1 | 1/1 (+0) | — | — | 1/1 (+0) |
+| r03-fetch-cache-mechanic | control | 1/1 | — | — | 1/1 (+0) | 1/1 (+0) |
+| r04-future-date-rule | fail-on-baseline | 1/1 | — | — | 1/1 (+0) | 1/1 (+0) |
+| r05-intended-stack-home | fail-on-baseline | 0/1 | 1/1 (+100) | — | — | 1/1 (+100) |
+| r06-partial-migration-directive | fail-on-baseline | 1/1 | — | — | 1/1 (+0) | 1/1 (+0) |
+| r07-cross-unit-invariant | control | 1/1 | — | — | — | 1/1 (+0) |
+| r08-agreed-not-implemented | fail-on-baseline | 0/1 | 1/1 (+100) | — | — | 1/1 (+100) |
+| r09-rationale-home | control | 1/1 | — | 1/1 (+0) | — | 1/1 (+0) |
+| r10-untested-behavior | control | 1/1 | — | — | — | 1/1 (+0) |
+| r11-commit-format | control | 1/1 | — | 1/1 (+0) | — | 1/1 (+0) |
+| r12-existing-unit-different-framing | control | 1/1 | — | 1/1 (+0) | — | 1/1 (+0) |
+
+Bundle deltas: A 57%, B —, C 0%, ALL 43%
+
+> Routing arm **C is identical to baseline** by construction — the full document is no longer injected, and every bundle-C edit lives in it. Treat that column as a noise estimate, not as an effect.
+
+## opus
+
+| case | predicts | baseline | A | B | C | ALL |
+|---|---|---|---|---|---|---|
+| r01-money-rounding-home | fail-on-baseline | 5/5 | 1/1 (+0) | — | — | 1/1 (+0) |
+| r02-server-actions-home | fail-on-baseline | 1/1 | 1/1 (+0) | — | — | 1/1 (+0) |
+| r03-fetch-cache-mechanic | control | 1/1 | — | — | 1/1 (+0) | 1/1 (+0) |
+| r04-future-date-rule | fail-on-baseline | 1/1 | — | — | 1/1 (+0) | 1/1 (+0) |
+| r05-intended-stack-home | fail-on-baseline | 0/1 | 1/1 (+100) | — | — | 1/1 (+100) |
+| r06-partial-migration-directive | fail-on-baseline | 1/1 | — | — | 1/1 (+0) | 1/1 (+0) |
+| r07-cross-unit-invariant | control | 1/1 | — | — | — | 1/1 (+0) |
+| r08-agreed-not-implemented | fail-on-baseline | 1/1 | 1/1 (+0) | — | — | 1/1 (+0) |
+| r09-rationale-home | control | 1/1 | — | 1/1 (+0) | — | 1/1 (+0) |
+| r10-untested-behavior | control | 1/1 | — | — | — | 1/1 (+0) |
+| r11-commit-format | control | 1/1 | — | 1/1 (+0) | — | 1/1 (+0) |
+| r12-existing-unit-different-framing | control | 1/1 | — | 1/1 (+0) | — | 1/1 (+0) |
+
+Bundle deltas: A 25%, B —, C 0%, ALL 17%
+
+> Routing arm **C is identical to baseline** by construction — the full document is no longer injected, and every bundle-C edit lives in it. Treat that column as a noise estimate, not as an effect.
+
+## Call-outs
+
+- **theoretical-finding** r02-server-actions-home {"haiku":1,"opus":1}
+- **theoretical-finding** r04-future-date-rule {"haiku":1,"opus":1}
+- **theoretical-finding** r06-partial-migration-directive {"haiku":1,"opus":1}
+
+## Provenance
+
+- Runs: 83, of which 0 scored `error` and left the denominators.
+- Isolation: safe-mode
+- Hook events observed: 0
+- `haiku` resolved to: claude-haiku-4-5-20251001
+- `opus` resolved to: claude-opus-5

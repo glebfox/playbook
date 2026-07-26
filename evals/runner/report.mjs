@@ -93,6 +93,12 @@ export function render(t) {
       }).join(' | ') + ' |')
     }
     out.push('', `Bundle deltas: ` + Object.entries(t.bundleDeltas[tier]).map(([k, v]) => `${k} ${pct(v)}`).join(', '), '')
+    // Said once per tier rather than left to the reader: bundle C is entirely document body, and the
+    // routing prompt stopped carrying the document after the first calibration run showed a 100%
+    // baseline ceiling. C's routing column is therefore the same condition as baseline, so its delta
+    // estimates rep-to-rep noise. Read as "C had no effect" it is simply wrong.
+    if (t.byTier[tier] && Object.values(t.byTier[tier]).some(c => c.C))
+      out.push(`> Routing arm **C is identical to baseline** by construction — the full document is no longer injected, and every bundle-C edit lives in it. Treat that column as a noise estimate, not as an effect.`, '')
   }
   if (t.callouts.length) {
     out.push('## Call-outs\n')
