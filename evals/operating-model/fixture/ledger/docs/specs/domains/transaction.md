@@ -19,16 +19,16 @@ The ledger entry: a signed amount against one account at one instant, optionally
 
 - `createTransaction(input)` — validates, assigns uuid v7, returns `Result<Transaction, TransactionError>`. Never throws.
 - `amountCents` of `0` is rejected: a zero-amount entry is always a data error, not a legitimate ledger line.
-- `occurredAt` more than 1 day in the future is rejected; past dates are unbounded.
 - Editing `amountCents` or `occurredAt` on a transaction that belongs to a closed budget period is rejected (`PERIOD_CLOSED`).
 - `description` is trimmed and collapsed to single spaces before storage, so dedupe keys are stable.
 - Deletion is soft: `deletedAt` is set, balances exclude it, the row stays for audit.
 - Categorization is idempotent: re-applying the same `categoryId` is a no-op, not an update.
+- Balances are derived at read time, never stored; a running balance is computed from the non-deleted set.
 
 ## Invariants
 
 - The sum of a non-deleted transaction set is exact (integer arithmetic).
-- `importKey` is unique per account when non-null (partial unique index).
+- `amountCents` is signed: debits negative, credits positive, and the sign is never inferred from the category.
 - A transaction never changes `accountId`; moving money between accounts is two transactions.
 
 ## Extension points
@@ -37,6 +37,5 @@ The ledger entry: a signed amount against one account at one instant, optionally
 
 ## Related
 
-- Dedupe key construction: see decision 0007.
 - Money representation: ARCHITECTURE.md conventions, decision 0004.
 - Coverage: `docs/tests/domains/transaction.md`.

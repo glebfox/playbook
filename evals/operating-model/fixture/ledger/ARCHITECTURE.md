@@ -17,21 +17,17 @@ domain/                 # pure business logic, no framework imports
   transaction/
   account/
   budget/
-services/               # I/O boundaries: db access, external APIs
-db/                     # drizzle schema + migrations
+db/                     # drizzle schema + migrations + query modules
 lib/                    # shared utilities
 ```
 
 ## Architectural conventions
 
 - **All money amounts are integer cents** (`number`, never `float`, never `string`). Formatting happens only at the view boundary. See decision 0004.
-- `domain/` may not import from `app/`, `services/`, or `db/`. Enforced by an eslint boundary rule.
-- Mutations go through Server Actions, never route handlers. Route handlers exist only for webhooks. See decision 0006.
-- Every Server Action validates input with a Zod schema colocated in the same file.
+- `domain/` may not import from `app/` or `db/`. Enforced by an eslint boundary rule.
 - All timestamps stored as `timestamptz`, always UTC; the browser localizes. See decision 0002.
-- Rounding is half-up at the presentation boundary only; stored values are never rounded. See decision 0009.
 - No ORM lazy loading — every query names its columns explicitly.
-- Errors cross the Server Action boundary as a discriminated result union, never thrown. See decision 0008.
+- Errors cross the domain boundary as a discriminated result union, never thrown. See decision 0008.
 
 ## Build / run / test
 

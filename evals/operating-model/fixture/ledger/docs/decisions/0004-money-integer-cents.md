@@ -21,6 +21,6 @@ Safe-integer headroom: 2^53 cents is ~$90 trillion, far beyond scope.
 ## Consequences
 
 - Arithmetic is ordinary integer arithmetic; sums are exact; no library.
-- Any percentage or split operation must decide a rounding rule explicitly, because integer division truncates. Half-up at presentation was later settled in decision 0009.
+- Any percentage or split operation must decide a rounding rule explicitly, because integer division truncates. This decision does not settle which rule; nothing has needed one yet.
 - Currencies with other minor-unit exponents (JPY: 0, KWD: 3) are not supported. Multi-currency would require revisiting this — likely by storing a per-amount exponent rather than by changing the integer representation.
 - Anything reading the DB outside the app (a psql query, a BI tool) sees cents, not dollars, and will mislead a casual reader.
