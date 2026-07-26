@@ -107,5 +107,43 @@ else
   note "arm-invariant contamination, but the skills gate may push the model to read more and mask bundle B."
 fi
 echo
+# ---------------------------------------------------------------- 5b.7 isolation without an API key
+# Both candidates below aim for the same thing as --setting-sources project (no host hooks) while
+# keeping subscription auth, so the suite never needs a per-token-billed API key. If either works,
+# it is strictly better than the fallback mode: hooks are what can mask bundle B.
+echo "== 5b.7: does --safe-mode suppress hooks and keep subscription auth? =="
+claude -p 'Reply with only: ok' --model haiku --output-format stream-json --verbose --safe-mode > "$OUT/safe.jsonl" 2>&1
+SAFE_HOOKS=$(grep -c '"subtype":"hook' "$OUT/safe.jsonl")
+SAFE_TEXT=$(node -e "const {parseStream}=await import('./evals/runner/invoke.mjs');console.log(parseStream(require('fs').readFileSync('$OUT/safe.jsonl','utf8')).answerText.slice(0,60))" --input-type=module 2>/dev/null)
+note "hook events: $SAFE_HOOKS | answer: $SAFE_TEXT"
+case "$SAFE_TEXT" in
+  *"Not logged in"*|"") fail "--safe-mode breaks auth too" ;;
+  *) [ "$SAFE_HOOKS" = "0" ] && pass "--safe-mode: auth intact, no hooks" || fail "--safe-mode kept auth but $SAFE_HOOKS hook event(s) fired" ;;
+esac
+note "If this passes it covers the 510 ROUTING runs cleanly: --safe-mode also disables the project"
+note "CLAUDE.md, which those runs do not need — their context is pre-assembled into the prompt."
+note "It does NOT suit the 36 behavioral runs, which must discover the fixture's CLAUDE.md normally."
+echo
+
+echo "== 5b.8: does a hooks-stripped CLAUDE_CONFIG_DIR keep auth? =="
+CFG=$(mktemp -d)
+node -e "
+const {readFileSync,writeFileSync}=require('fs'), {homedir}=require('os')
+const s=JSON.parse(readFileSync(homedir()+'/.claude/settings.json','utf8'))
+delete s.hooks
+writeFileSync('$CFG/settings.json', JSON.stringify(s,null,2))
+console.log('wrote settings.json without hooks')"
+CLAUDE_CONFIG_DIR="$CFG" claude -p 'Reply with only: ok' --model haiku --output-format stream-json --verbose > "$OUT/cfg.jsonl" 2>&1
+CFG_HOOKS=$(grep -c '"subtype":"hook' "$OUT/cfg.jsonl")
+CFG_TEXT=$(node -e "const {parseStream}=await import('./evals/runner/invoke.mjs');console.log(parseStream(require('fs').readFileSync('$OUT/cfg.jsonl','utf8')).answerText.slice(0,60))" --input-type=module 2>/dev/null)
+note "hook events: $CFG_HOOKS | answer: $CFG_TEXT"
+case "$CFG_TEXT" in
+  *"Not logged in"*|"") fail "auth does not survive a relocated config dir — credentials are tied to it, not to the keychain" ;;
+  *) [ "$CFG_HOOKS" = "0" ] && pass "hooks gone, auth intact — this is isolation on subscription auth, usable for BEHAVIORAL runs too" \
+       || fail "auth intact but $CFG_HOOKS hook event(s) still fired" ;;
+esac
+note "This also drops plugins and skills, which is more than hooks — record it as the run's isolation mode."
+note "config dir used: $CFG"
+echo
 echo "artifacts: $OUT"
 rm -rf "$DIR"

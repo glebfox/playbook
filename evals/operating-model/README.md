@@ -11,7 +11,12 @@ Design of record: [DESIGN.md](DESIGN.md). How it was built, task by task: [PLAN.
 1. `sh evals/runner/verify-cli.sh` — auth, plus the six CLI behaviors the runner assumes but the smoke tests never covered. Anything that fails there is a fix before the calibration run, not after.
 2. The calibration run, then the golden freeze (PLAN.md Task 8, steps 3–5). Until `results/golden/` holds frozen verdicts, `grade.mjs --self-check` reports `0 frozen verdicts` and the grader is unprotected against its own future edits.
 
-The isolation mode the golden set was produced in gets recorded here once it exists. It matters: without `ANTHROPIC_API_KEY`, `--setting-sources project` breaks auth, so the suite falls back to loading host settings and host hooks fire inside every run. That contamination is arm-invariant, so it does not bias the deltas — but the skills-gate hook pushes a session to go looking for skills, which can partially substitute for the reading-order edit and **mask bundle B**.
+The isolation mode the golden set was produced in gets recorded here once it exists. It matters: `--setting-sources project` suppresses host hooks but also drops subscription credentials, so with a normal login the suite falls back to loading host settings and hooks fire inside every run. That contamination is arm-invariant, so it does not bias the deltas — but the skills-gate hook pushes a session to go looking for skills, which can partially substitute for the reading-order edit and **mask bundle B**.
+
+**No API key is required to run this suite.** It drives the Claude Code CLI in print mode, so a normal subscription login is enough and the runs draw on plan usage rather than a per-token bill. `ANTHROPIC_API_KEY` appears in the plan for one reason only — it was the single configuration found where hook isolation and working auth coexist. Two cheaper candidates for the same isolation are checked by `verify-cli.sh` (5b.7 and 5b.8) and neither has been confirmed yet:
+
+- **`--safe-mode`** disables hooks, skills, plugins and the project `CLAUDE.md` together. The plan rejected it as too coarse, but that reasoning only holds for the behavioral layer: routing runs get their `CLAUDE.md` injected into the prompt, so for 510 of the 546 runs there is nothing to lose.
+- **A relocated `CLAUDE_CONFIG_DIR`** holding a copy of the user settings with `hooks` deleted. If credentials come from the keychain rather than the config directory, this yields isolation on subscription auth for the behavioral runs too — the half where hooks matter most, since those cases measure reading behavior.
 
 ## Verified CLI facts
 
