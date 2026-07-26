@@ -78,6 +78,25 @@ test('b03 does not credit a bare listing of the drift path', () => {
   assert.equal(grade(P({ toolCalls: [{ name: 'Bash', raw: 'git log abc123..HEAD -- domain/transaction', paths: ['domain/transaction'] }] }), c).verdict, 'pass')
 })
 
+// The real shape of a routing answer, captured from a live haiku run: the validated object arrives
+// as a StructuredOutput tool call, while the text block holds a fenced copy plus reasoning prose.
+// Grading the field and ignoring the prose is what keeps arm C from being penalised for articulating
+// the very trade-off its edit teaches.
+test('the destination is read from the validated StructuredOutput field, not the prose', () => {
+  const p = P({
+    structuredOutput: { destination: 'ARCHITECTURE.md' },
+    answerText: '```json\n{"destination": "ARCHITECTURE.md"}\n```\n\nThis is an **architectural convention** about how the system represents money. A guideline would be wrong here.',
+  })
+  assert.equal(grade(p, dest(['ARCHITECTURE.md'], ['docs/guidelines/**'])).verdict, 'pass',
+    'the prose names a forbidden path while rejecting it; only the field counts')
+})
+
+test('StructuredOutput does not count as a tool call', () => {
+  // It is how --json-schema delivers the answer, so counting it would score every routing run error.
+  const p = P({ structuredOutput: { destination: 'ARCHITECTURE.md' }, toolCalls: [] })
+  assert.equal(grade(p, dest(['ARCHITECTURE.md'])).verdict, 'pass')
+})
+
 test('a routing run that used tools is an error, not a verdict', () => {
   const p = P({ answerText: '{"destination":"ARCHITECTURE.md"}', toolCalls: [{ name: 'Read', paths: ['ARCHITECTURE.md'] }] })
   assert.equal(grade(p, dest(['ARCHITECTURE.md'])).verdict, 'error')

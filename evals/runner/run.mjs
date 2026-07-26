@@ -13,9 +13,17 @@ const suite = arg('--suite', 'evals/operating-model')
 const runId = arg('--run-id')
 const repsOverride = arg('--reps') ? Number(arg('--reps')) : null
 const only = arg('--case')
-const isolated = !has('--allow-contaminated')
 if (!runId) { console.error('--run-id is required (e.g. calibration-1, full-1)'); process.exit(2) }
-if (!isolated) console.warn('WARNING: running with host settings loaded. Hooks will fire in every run; contamination is arm-invariant but can mask bundle B.')
+
+// Isolation now differs by family, because the CLI's verified behavior differs:
+//   routing    — `--safe-mode`: zero hooks, subscription auth intact. Always isolated, no key.
+//   behavioral — needs the fixture's CLAUDE.md discovered, so safe-mode is out. `--setting-sources
+//                project` suppresses hooks but drops subscription credentials, so full isolation
+//                there requires ANTHROPIC_API_KEY. Without one, host hooks fire in those 36 runs.
+const hasApiKey = Boolean(process.env.ANTHROPIC_API_KEY)
+const allowContaminated = has('--allow-contaminated')
+const isolationOf = family => family === 'routing' ? 'safe-mode' : (hasApiKey ? 'setting-sources' : 'host-settings')
+if (!hasApiKey && allowContaminated) console.warn('WARNING: behavioral runs will load host settings. Hooks fire in every one of them; the contamination is arm-invariant but the skills gate can mask bundle B.')
 
 // Preflight: without this a missing or broken CLI produces a full run of `error` verdicts that
 // looks like data. One cheap call up front turns that into one clear line before anything stages.
@@ -61,6 +69,13 @@ for (const c of cases) {
     for (const [model, reps] of Object.entries(c.reps)) {
       for (let rep = 1; rep <= (repsOverride ?? reps); rep++) {
         if (alreadyDone.has(`${c.id}|${arm}|${model}|${rep}`)) { skipped++; continue }
+        const isolation = isolationOf(c.family)
+        // Refuse to run a contaminated behavioral case by accident: those are the cases that
+        // measure reading behavior, and the skills-gate hook perturbs exactly that.
+        if (isolation === 'host-settings' && !allowContaminated) {
+          console.error(`REFUSING to run behavioral case ${c.id} with host settings loaded — hooks would fire inside it and can mask bundle B.\nEither export ANTHROPIC_API_KEY for real isolation, or pass --allow-contaminated to accept it knowingly.\nRouting cases need neither: they isolate via --safe-mode.`)
+          process.exit(2)
+        }
         const { dir, cleanup } = stage({ suite, arm, world: c.world, baselineSha })
         const bad = selfCheck(dir, arm, c.world)
         if (bad.length) { cleanup(); console.error(`ABORT materialization self-check failed for ${arm}: ${bad.join('; ')}`); process.exit(1) }
@@ -68,13 +83,13 @@ for (const c of cases) {
         // Behavioral: the agent explores the staged tree itself.
         const prompt = c.family === 'routing' ? composeRoutingPrompt(dir, c.prompt, c.world) : c.prompt
         const p = await invoke({ dir, prompt, model, family: c.family, caps: c.caps,
-          jsonSchema: c.family === 'routing' ? SCHEMA : null, isolated })
+          jsonSchema: c.family === 'routing' ? SCHEMA : null, isolated: isolation === 'setting-sources' })
         const { verdict, reason } = grade(p, c)
         const streamFile = `streams/${c.id}-${arm}-${model}-${rep}.txt`
         writeFileSync(join(outDir, streamFile), p.events.map(e => JSON.stringify(e)).join('\n'))
         appendFileSync(ledger, JSON.stringify({ caseId: c.id, casePath: c.casePath, arm, model, rep,
           predicts: c.predicts, verdict, reason, streamFile, resolvedModel: p.model,
-          hookEvents: p.hookEvents, costUsd: p.result?.total_cost_usd ?? null, isolated }) + '\n')
+          hookEvents: p.hookEvents, costUsd: p.result?.total_cost_usd ?? null, isolationMode: isolation }) + '\n')
         cleanup()
         done++
         console.log(`[${done}] ${c.id} ${arm} ${model} #${rep} → ${verdict} (${reason})`)

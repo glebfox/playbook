@@ -45,11 +45,20 @@ It has exactly one home. Reply with a JSON object and nothing else: {"destinatio
 export function buildArgs({ model, family, caps, jsonSchema, isolated }) {
   const a = ['-p', '--model', model, '--output-format', 'stream-json', '--verbose']
   if (caps?.budgetUsd) a.push('--max-budget-usd', String(caps.budgetUsd))
-  if (isolated) a.push('--setting-sources', 'project')
   if (family === 'routing') {
+    // `--safe-mode` is verified to keep subscription auth AND emit zero hook events, which is what
+    // removes ANTHROPIC_API_KEY from this suite's requirements. It also disables the project
+    // CLAUDE.md, skills and plugins — all irrelevant for routing, because the context is
+    // pre-assembled into the prompt. Verified on a real run: 0 hooks, 0 tool calls, schema honored.
+    a.push('--safe-mode')
     a.push('--allowedTools', '')          // one turn, no tools: the context is pre-assembled
     if (jsonSchema) a.push('--json-schema', jsonSchema)
   } else {
+    // Behavioral runs must discover the fixture's CLAUDE.md normally, so `--safe-mode` is out — it
+    // would disable the very file bundle B edits. `--setting-sources project` suppresses hooks but
+    // drops subscription credentials, so it is usable only with an API key; without one the run
+    // loads host settings and hooks fire. That is the only contaminated layer left.
+    if (isolated) a.push('--setting-sources', 'project')
     a.push('--permission-mode', 'acceptEdits')
   }
   return a
@@ -62,7 +71,7 @@ export function parseStream(text) {
     try { events.push(JSON.parse(line)) } catch { /* partial or non-JSON line */ }
   }
   const toolCalls = []
-  let answerText = '', model = null, result = null, hookEvents = 0, apiKeySource = null
+  let answerText = '', model = null, result = null, hookEvents = 0, apiKeySource = null, structuredOutput = null
   // Observed on a real failed run: the CLI puts `error: "authentication_failed"` on the event and
   // `is_error: true` on the result, alongside `subtype: "success"`. Both are stronger signals than
   // matching the words "Not logged in", which are wording- and locale-dependent.
@@ -78,13 +87,18 @@ export function parseStream(text) {
     } else if (e.type === 'assistant') {
       for (const c of e.message?.content ?? []) {
         if (c.type === 'tool_use') {
+          // `--json-schema` delivers the validated object as a tool_use named StructuredOutput.
+          // Observed, not assumed. It is harness plumbing rather than the model exploring the tree,
+          // so it must stay out of toolCalls: the routing invariant is "no tool calls", and counting
+          // this one would score every single routing run `error`.
+          if (c.name === 'StructuredOutput') { structuredOutput = c.input ?? null; continue }
           const src = c.input?.file_path ?? c.input?.path ?? c.input?.command ?? JSON.stringify(c.input ?? {})
           toolCalls.push({ name: c.name, raw: src, paths: [...String(src).matchAll(PATH_RE)].map(m => m[0]) })
         } else if (c.type === 'text') answerText += c.text
       }
     } else if (e.type === 'result') result = e
   }
-  return { events, toolCalls, answerText: answerText.trim(), model, result, hookEvents, apiKeySource, errorFlags }
+  return { events, toolCalls, answerText: answerText.trim(), model, result, hookEvents, apiKeySource, errorFlags, structuredOutput }
 }
 
 export function isBroken(p) {

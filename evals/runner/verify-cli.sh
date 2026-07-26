@@ -33,7 +33,7 @@ echo
 echo "== step 5: auth =="
 claude -p 'Reply with only: ok' --model haiku --output-format stream-json --verbose > "$OUT/auth.jsonl" 2>"$OUT/auth.err"
 COST=$(node -e "const l=require('fs').readFileSync('$OUT/auth.jsonl','utf8').trim().split('\n');const r=l.map(x=>{try{return JSON.parse(x)}catch{return{}}}).find(e=>e.type==='result');console.log(r?[r.subtype,r.total_cost_usd,r.num_turns].join(' '):'no-result')")
-TEXT=$(node -e "const {parseStream}=await import('./evals/runner/invoke.mjs');console.log(parseStream(require('fs').readFileSync('$OUT/auth.jsonl','utf8')).answerText.slice(0,120))" --input-type=module 2>/dev/null)
+TEXT=$(node --input-type=module -e "const {readFileSync}=await import('node:fs');const {parseStream}=await import('./evals/runner/invoke.mjs');console.log(parseStream(readFileSync('$OUT/auth.jsonl','utf8')).answerText.slice(0,120))")
 note "result(subtype cost turns): $COST"
 note "answer: $TEXT"
 case "$TEXT" in
@@ -48,20 +48,27 @@ SCHEMA="$SCHEMA" node --input-type=module -e "
 const {invoke, composeRoutingPrompt} = await import('./evals/runner/invoke.mjs')
 const p = await invoke({dir:'$DIR', prompt: composeRoutingPrompt('$DIR','A one-line change just settled how this app rounds: half-up when formatted, stored values never rounded.'),
   model:'haiku', family:'routing', caps:{budgetUsd:0.5, timeoutMs:120000}, jsonSchema:process.env.SCHEMA, isolated:false})
-require('fs').writeFileSync('$OUT/routing.json', JSON.stringify(p,null,1))
-console.log('tool_use events:', p.toolCalls.length, '| answer:', JSON.stringify(p.answerText.slice(0,200)))
+const {writeFileSync} = await import('node:fs')
+writeFileSync('$OUT/routing.json', JSON.stringify(p,null,1))
+console.log('real tool calls:', p.toolCalls.length, JSON.stringify(p.toolCalls.map(c=>c.name)))
+console.log('structured field:', JSON.stringify(p.structuredOutput))
+console.log('answer text:', JSON.stringify(p.answerText.slice(0,160)))
 console.log('hook events:', p.hookEvents, '| model:', p.model, '| result:', p.result && p.result.subtype)
 " 2>&1 | tee "$OUT/routing.log"
-TOOLS=$(grep -o 'tool_use events: [0-9]*' "$OUT/routing.log" | grep -o '[0-9]*$')
+# `StructuredOutput` is how --json-schema returns the answer, not the model exploring the tree, so
+# parseStream keeps it out of toolCalls. Counting it here condemned a working configuration once.
+TOOLS=$(grep -o 'real tool calls: [0-9]*' "$OUT/routing.log" | grep -o '[0-9]*$')
 [ "$TOOLS" = "0" ] && pass "no tool calls in a routing run" || fail "$TOOLS tool call(s) leaked — find the real flag (--disallowedTools, or --permission-mode with an empty allowlist)"
 echo
 
 # ---------------------------------------------------------------- 5b.2 structured output shape
-echo "== 5b.2: does --json-schema output arrive as assistant text? =="
-if grep -q '"destination"' "$OUT/routing.log"; then
-  pass "the JSON object reached answerText, which is where grade() reads it"
+echo "== 5b.2: where does the --json-schema answer actually arrive? =="
+if grep -q 'structured field: {"destination"' "$OUT/routing.log"; then
+  pass "as a validated StructuredOutput field, which is where grade() now reads it"
+  note "The text block carries a fenced copy plus reasoning prose — grading the field, not the prose,"
+  note "is what stops arm C being penalised for articulating the trade-off its own edit teaches."
 else
-  fail "no destination field in assistant text — every routing run would grade 'error'"
+  fail "no validated destination field — every routing run would grade 'error'"
   note "inspect $OUT/routing.json for where the structured answer actually landed"
 fi
 echo
@@ -114,7 +121,7 @@ echo
 echo "== 5b.7: does --safe-mode suppress hooks and keep subscription auth? =="
 claude -p 'Reply with only: ok' --model haiku --output-format stream-json --verbose --safe-mode > "$OUT/safe.jsonl" 2>&1
 SAFE_HOOKS=$(grep -c '"subtype":"hook' "$OUT/safe.jsonl")
-SAFE_TEXT=$(node -e "const {parseStream}=await import('./evals/runner/invoke.mjs');console.log(parseStream(require('fs').readFileSync('$OUT/safe.jsonl','utf8')).answerText.slice(0,60))" --input-type=module 2>/dev/null)
+SAFE_TEXT=$(node --input-type=module -e "const {readFileSync}=await import('node:fs');const {parseStream}=await import('./evals/runner/invoke.mjs');console.log(parseStream(readFileSync('$OUT/safe.jsonl','utf8')).answerText.slice(0,60))")
 note "hook events: $SAFE_HOOKS | answer: $SAFE_TEXT"
 case "$SAFE_TEXT" in
   *"Not logged in"*|"") fail "--safe-mode breaks auth too" ;;
@@ -135,7 +142,7 @@ writeFileSync('$CFG/settings.json', JSON.stringify(s,null,2))
 console.log('wrote settings.json without hooks')"
 CLAUDE_CONFIG_DIR="$CFG" claude -p 'Reply with only: ok' --model haiku --output-format stream-json --verbose > "$OUT/cfg.jsonl" 2>&1
 CFG_HOOKS=$(grep -c '"subtype":"hook' "$OUT/cfg.jsonl")
-CFG_TEXT=$(node -e "const {parseStream}=await import('./evals/runner/invoke.mjs');console.log(parseStream(require('fs').readFileSync('$OUT/cfg.jsonl','utf8')).answerText.slice(0,60))" --input-type=module 2>/dev/null)
+CFG_TEXT=$(node --input-type=module -e "const {readFileSync}=await import('node:fs');const {parseStream}=await import('./evals/runner/invoke.mjs');console.log(parseStream(readFileSync('$OUT/cfg.jsonl','utf8')).answerText.slice(0,60))")
 note "hook events: $CFG_HOOKS | answer: $CFG_TEXT"
 case "$CFG_TEXT" in
   *"Not logged in"*|"") fail "auth does not survive a relocated config dir — credentials are tied to it, not to the keychain" ;;

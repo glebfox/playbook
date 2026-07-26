@@ -16,7 +16,10 @@ export function tally(records) {
 
     prov.runs++
     if (r.verdict === 'error') prov.errors++
-    if (r.isolated !== undefined) prov.isolation.add(r.isolated ? 'isolated' : 'contaminated')
+    // `isolationMode` names the mechanism per run (routing and behavioral differ); the older
+    // boolean is still read so a ledger from before that split still renders.
+    if (r.isolationMode) prov.isolation.add(r.isolationMode)
+    else if (r.isolated !== undefined) prov.isolation.add(r.isolated ? 'isolated' : 'contaminated')
     prov.hookEvents += r.hookEvents ?? 0
     if (r.resolvedModel) (prov.resolvedModels[r.model] ??= new Set()).add(r.resolvedModel)
   }
@@ -100,7 +103,8 @@ export function render(t) {
   if (p) {
     out.push('', '## Provenance\n')
     out.push(`- Runs: ${p.runs}, of which ${p.errors} scored \`error\` and left the denominators.`)
-    out.push(`- Isolation: ${p.isolation.length ? p.isolation.join(' + ') : 'unrecorded'}${p.isolation.includes('contaminated') ? ' — **host settings were loaded, so hooks fired inside these runs.** Arm-invariant, but the skills gate can push a session to read more and mask bundle B.' : ''}`)
+    const dirty = p.isolation.includes('contaminated') || p.isolation.includes('host-settings')
+    out.push(`- Isolation: ${p.isolation.length ? p.isolation.join(' + ') : 'unrecorded'}${dirty ? ' — **host settings were loaded for at least some runs, so hooks fired inside them.** Arm-invariant, but the skills gate can push a session to read more and mask bundle B.' : ''}`)
     out.push(`- Hook events observed: ${p.hookEvents}${p.hookEvents > 0 && !p.isolation.includes('contaminated') ? ' — non-zero in an isolated run means isolation did not hold.' : ''}`)
     for (const [tier, ids] of Object.entries(p.resolvedModels)) out.push(`- \`${tier}\` resolved to: ${ids.join(', ')}`)
   }

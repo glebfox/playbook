@@ -6,10 +6,14 @@ Design of record: [DESIGN.md](DESIGN.md). How it was built, task by task: [PLAN.
 
 ## Status
 
-**Not yet measured.** Everything below runs; nothing has been run against a model. Two things must happen first, both from a normal terminal — nested `claude` invocations from inside a Claude Code session fail auth, so they cannot be done from an agent session:
+**Not yet measured, but the CLI layer is now verified.** `sh evals/runner/verify-cli.sh` has been run: auth works on a plain subscription login, and every assumption the runner makes about the CLI has been checked against a live stream — see *Verified CLI facts* below. Two of them were wrong and are fixed.
 
-1. `sh evals/runner/verify-cli.sh` — auth, plus the six CLI behaviors the runner assumes but the smoke tests never covered. Anything that fails there is a fix before the calibration run, not after.
-2. The calibration run, then the golden freeze (PLAN.md Task 8, steps 3–5). Until `results/golden/` holds frozen verdicts, `grade.mjs --self-check` reports `0 frozen verdicts` and the grader is unprotected against its own future edits.
+What remains:
+
+1. The calibration run at N=1 (80 invocations), then a hand-review of all 80 verdicts, then the golden freeze (PLAN.md Task 8, steps 3–5). Until `results/golden/` holds frozen verdicts, `grade.mjs --self-check` reports `0 frozen verdicts` and the grader is unprotected against its own future edits.
+2. The full run, 546 invocations.
+
+Note that nested `claude` calls **do** work from an agent session, but only outside the tool sandbox: inside it the keychain is unreachable and every run returns `authentication_failed`. The plan's claim that these steps require a human terminal was too strong.
 
 The isolation mode the golden set was produced in gets recorded here once it exists. It matters: `--setting-sources project` suppresses host hooks but also drops subscription credentials, so with a normal login the suite falls back to loading host settings and hooks fire inside every run. That contamination is arm-invariant, so it does not bias the deltas — but the skills-gate hook pushes a session to go looking for skills, which can partially substitute for the reading-order edit and **mask bundle B**.
 
@@ -29,13 +33,24 @@ What the runner assumes about the `claude` CLI, and how much of it has actually 
 | `--setting-sources project` suppresses hooks but breaks subscription auth | verified by smoke test |
 | The `system`/`init` event carries `.model` and `.apiKeySource` | **verified** — read `claude-haiku-4-5-20251001` and `none` |
 | A failed-auth run reports `subtype: "success"` with `num_turns: 1` and zero cost | verified, and **extended**: it also carries `is_error: true` on the result and `error: "authentication_failed"` on the assistant event. `isBroken` prefers those two, because they do not depend on the wording of a message |
-| `--allowedTools ''` truly disables tools in a routing run | **unverified** — this is a guess in the plan's own words; if wrong, all 510 routing runs score `error` |
-| `--json-schema` output arrives as assistant text | **unverified** — if wrong, every routing run grades `error` |
-| `--setting-sources project` still loads the project `CLAUDE.md` | **unverified** — if wrong, bundle B's behavioral channel is dead |
-| Budget exhaustion surfaces as a non-`success` subtype | **unverified** — if wrong, cap-hits score `fail` and reintroduce treatment-correlated censoring |
-| `total_cost_usd` is non-zero under subscription auth | **unverified** — if wrong, `isBroken`'s zero-cost heuristic errors every run |
+| `--allowedTools ''` truly disables tools in a routing run | **verified** — zero real tool calls on a live routing run |
+| `--json-schema` delivers the answer | **verified, and not as assumed**: it arrives as a `tool_use` named `StructuredOutput` whose `input` is the validated object. The text block holds a fenced copy plus reasoning prose. `grade()` reads the field; `parseStream` keeps `StructuredOutput` out of `toolCalls`, because counting it scored **every** routing run `error` |
+| Budget exhaustion surfaces as a non-`success` subtype | **verified** — `error_max_budget_usd`, so a cap-hit is distinguishable and scores `error` rather than `fail` |
+| `total_cost_usd` is non-zero under subscription auth | **verified** — ~0.026 for a one-turn Haiku call |
+| **`--safe-mode` keeps subscription auth and emits zero hook events** | **verified**, including on a full routing run with the schema. This is what removes `ANTHROPIC_API_KEY` from the suite's requirements |
+| A relocated `CLAUDE_CONFIG_DIR` keeps auth | **verified false** — credentials follow the config directory, so this does not buy isolation |
+| `--setting-sources project` still loads the project `CLAUDE.md` | **unverified** — needs an API key to test, and only the 36 behavioral runs depend on it |
 
-The five unverified rows all need a working login: `sh evals/runner/verify-cli.sh`.
+## Isolation, as actually implemented
+
+Verification changed this from a single mode into one per family:
+
+| Layer | Mechanism | Hooks |
+|---|---|---|
+| Routing, 510 runs | `--safe-mode` | none |
+| Behavioral, 36 runs | `--setting-sources project` with an API key, otherwise host settings | none / **they fire** |
+
+`--safe-mode` also disables the project `CLAUDE.md`, skills and plugins, which costs routing nothing — its context is pre-assembled into the prompt. Behavioral runs cannot use it, because the file it disables is the artifact bundle B edits. So without an API key the 36 behavioral runs are the only contaminated layer, and `run.mjs` refuses to run them until `--allow-contaminated` says that is understood. The ledger records `isolationMode` per run and the report prints it.
 
 ## Running it
 

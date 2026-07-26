@@ -36,7 +36,13 @@ function evalPredicate(toolCalls, predicate) {
   return { ok: a < b, reason: `${lhs}@${a} vs ${rhs}@${b}` }
 }
 
-function destinationOf(answerText) {
+function destinationOf(parsed) {
+  // The validated field, as `--json-schema` actually delivers it: the input of a StructuredOutput
+  // tool call. This is the "graded value is a validated field rather than a parsed line" the design
+  // asks for. Observed shape: {"destination":"ARCHITECTURE.md"} alongside prose in the text block —
+  // which is exactly why the field is graded and the prose is not.
+  if (typeof parsed.structuredOutput?.destination === 'string') return parsed.structuredOutput.destination
+  const answerText = parsed.answerText ?? ''
   try { const o = JSON.parse(answerText); if (typeof o?.destination === 'string') return o.destination } catch { /* fall through */ }
   const m = answerText.match(/"destination"\s*:\s*"([^"]+)"/)
   if (m) return m[1]
@@ -55,7 +61,7 @@ export function grade(parsed, caseObj) {
     // so assert it here: a routing run that read the tree was not the controlled condition.
     if (parsed.toolCalls.length > 0)
       return { verdict: 'error', reason: `routing run used ${parsed.toolCalls.length} tool call(s); context was not controlled` }
-    const d = destinationOf(parsed.answerText).replace(/^\.?\//, '')
+    const d = destinationOf(parsed).replace(/^\.?\//, '')
     if (!d) return { verdict: 'error', reason: 'no destination in answer' }
     if ((g.forbid ?? []).some(f => matches(d, f))) return { verdict: 'fail', reason: `forbidden destination ${d}` }
     const ok = g.expect.some(e => matches(d, e))

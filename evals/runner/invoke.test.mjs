@@ -6,19 +6,26 @@ import { buildArgs, parseStream, isBroken, composeRoutingPrompt } from './invoke
 
 const SCHEMA = '{"type":"object","properties":{"destination":{"type":"string"}},"required":["destination"]}'
 
-test('routing args carry verbose, json schema, and a budget cap', () => {
+test('routing args carry verbose, json schema, a budget cap, and safe-mode isolation', () => {
   const a = buildArgs({ model: 'haiku', family: 'routing', caps: { budgetUsd: 0.5 }, jsonSchema: SCHEMA, isolated: true })
   assert.ok(a.includes('--verbose'), 'stream-json requires --verbose')
   assert.ok(a.includes('--output-format') && a.includes('stream-json'))
   assert.ok(a.includes('--json-schema'))
   assert.ok(a.includes('--max-budget-usd'))
-  assert.deepEqual(a.filter(x => x === '--setting-sources').length, 1)
+  // Isolation for routing comes from --safe-mode, which is verified to keep subscription auth,
+  // rather than from --setting-sources project, which drops the credentials with the hooks.
+  assert.ok(a.includes('--safe-mode'))
+  assert.ok(!a.includes('--setting-sources'), 'no API key should be needed to isolate a routing run')
 })
 
-test('behavioral args allow tools and omit the json schema', () => {
+test('behavioral args allow tools, omit the json schema, and never use safe-mode', () => {
   const a = buildArgs({ model: 'opus', family: 'behavioral', caps: { budgetUsd: 3 }, isolated: true })
   assert.ok(!a.includes('--json-schema'))
   assert.ok(a.includes('--permission-mode'))
+  // --safe-mode would disable the fixture's CLAUDE.md, which is the artifact bundle B edits.
+  assert.ok(!a.includes('--safe-mode'))
+  assert.ok(a.includes('--setting-sources'), 'isolated behavioral runs need an API key to suppress hooks')
+  assert.ok(!buildArgs({ model: 'opus', family: 'behavioral', caps: { budgetUsd: 3 }, isolated: false }).includes('--setting-sources'))
 })
 
 test('parseStream projects tool calls per tool, including Bash paths', () => {
