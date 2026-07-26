@@ -76,14 +76,14 @@ Map of this repository's knowledge base. A table of contents, not an encyclopedi
 
 ## Workflow
 
-- Each increment runs its own cycle: brainstorm → design (`docs/increments/active/<slug>/design.md`) → plan (`plan.md` next to it) → execute → consolidate durable knowledge into `docs/specs/<axis>/*.md`, the test-coverage matrix into `docs/tests/<axis>/*.md`, reusable mechanics into `docs/guidelines/`, significant decisions into `docs/decisions/` → move the increment's directory to `completed/`.
+- Each increment runs its own cycle: brainstorm → design (`docs/increments/active/<slug>/design.md`) → plan (`plan.md` next to it) → execute → consolidate durable knowledge into `docs/specs/<axis>/*.md`, the test-coverage matrix into `docs/tests/<axis>/*.md`, any new architectural convention, layout change, or command into `ARCHITECTURE.md`, reusable mechanics into `docs/guidelines/`, significant decisions into `docs/decisions/` → move the increment's directory to `completed/`.
 - Work smaller than an increment (fixes, chores) skips the cycle, but not consolidation: if durable behavior changed, update the affected specs, test docs, and decisions as part of the same change.
 
 ## Documentation Hygiene
 
 - Keep this file a thin map. Architectural facts → ARCHITECTURE.md; code/commit conventions → docs/conventions.md; product intent → docs/vision.md; unit state → docs/specs/<axis>/; unit test coverage → docs/tests/<axis>/; cross-cutting framework/platform mechanics (incl. the test harness) → docs/guidelines/; decision rationale → docs/decisions/. Don't duplicate here.
 - A spec says *what a unit is*; the framework/platform mechanics behind it (the *how*) live in docs/guidelines/, not in a spec. Unit-fact vs framework-mechanic, not unique-vs-shared. The same split applies to tests: per-unit coverage → docs/tests/<axis>/; the test harness & strategy → docs/guidelines/. A test doc lists gaps too (not-yet-tested behaviors, with a reason), so it doubles as a TODO.
-- After an increment touches a unit, update its durable spec and its test-coverage doc so both reflect reality.
+- After an increment touches a unit, update its durable spec and its test-coverage doc so both reflect reality — or ARCHITECTURE.md, when the changed behavior is a project-wide convention that no single unit owns.
 - Facts and their why live apart: a living doc links to the docs/decisions/ entry for rationale, never restates it. A decision file is never edited to match the present — supersede it with a new one.
 - An increment's design and plan stop being the source of truth once its directory moves to `completed/`.
 ```
@@ -95,14 +95,14 @@ An **increment** is the unit of one cycle: a single coherent slice of work — a
 1. **Brainstorm** the increment (intent, constraints, approach) — one question at a time, present a design, get approval.
 2. **Write the design** into `docs/increments/active/<YYYY-MM-DD-increment>/design.md`, then the **plan** into `plan.md` beside it.
 3. **Execute** the plan.
-4. **Consolidate** durable knowledge into `docs/specs/<axis>/*.md` (update the affected units to reflect reality) and the test-coverage matrix into `docs/tests/<axis>/*.md`; record any reusable framework/platform mechanics discovered (including testing mechanics) into `docs/guidelines/`; distil significant decisions — with the alternatives they beat — into `docs/decisions/`.
+4. **Consolidate** durable knowledge into `docs/specs/<axis>/*.md` (update the affected units to reflect reality) and the test-coverage matrix into `docs/tests/<axis>/*.md`; record any reusable framework/platform mechanics discovered (including testing mechanics) into `docs/guidelines/`; distil significant decisions — with the alternatives they beat — into `docs/decisions/`; and any new architectural convention, layout change, or command into `ARCHITECTURE.md`, moving it out of `docs/vision.md` if that is where the intent lived — this is the migration step, and it is the only one.
 5. **Close the increment**: move its directory from `active/` to `completed/`; update `docs/roadmap.md` status. That move is the point the design and plan stop being the source of truth — they are not updated again.
 
 An increment's directory carries the date-slug (`YYYY-MM-DD-<increment>/`); the files inside are always plain `design.md` and `plan.md` — the directory conveys which increment, the filename conveys the type. They are deliberately two separate files: a session executing the plan loads `plan.md` without dragging the whole design into context. They are **kept, not deleted**: after the increment the directory stays in `completed/` as a point-in-time record. Reserve "spec" for the durable per-unit docs (the living source of truth); the brainstorm output is a "design", not a spec.
 
 ### Work smaller than an increment
 
-Bug fixes, chores, and small adjustments don't get the ceremony: no design, no plan, no roadmap entry. One step survives at every scale — **consolidation**. If the change touched durable behavior, update the affected spec and test-coverage doc (and record the decision, if one was made) as part of the same change, whatever shape a "change" takes in the project's flow. The cycle scales down; the source of truth does not.
+Bug fixes, chores, and small adjustments don't get the ceremony: no design, no plan, no roadmap entry. One step survives at every scale — **consolidation**. If the change touched durable behavior, update the affected spec and test-coverage doc — **or `ARCHITECTURE.md`, when the changed behavior is a project-wide convention that no single unit owns** — and record the decision, if one was made, as part of the same change, whatever shape a "change" takes in the project's flow. The cycle scales down; the source of truth does not.
 
 ## Bootstrap steps for a fresh project
 
