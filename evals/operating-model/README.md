@@ -50,6 +50,10 @@ Two call-outs have mechanical thresholds, so the no-judge claim holds at the rep
 
 Headline bundle deltas average over **predicted-fail cases only**. Controls are flat by construction, so including them would pull every bundle toward zero.
 
+Render a ledger with `node evals/runner/report.mjs <path-to-runs.jsonl>`. Every table carries a `predicts` column, and a `## Provenance` section records the isolation mode, the hook-event count, how many runs scored `error`, and the model snapshot each tier resolved to. Read the provenance first: a contaminated run's numbers must not be read as isolated ones, and hook events above zero in a run claiming isolation mean isolation did not hold.
+
+Note that bundle B's delta is undefined on the haiku tier: B has no predicted-fail routing case, so on that tier it carries only controls, and its entire effect estimate rides on three Opus behavioral cases at N=3.
+
 `r06` is the one case whose baseline column reads as *compliance with the old rule* rather than as error: the baseline document mandates a different answer. That is the delta mechanism, not a defect, and the report must label it that way.
 
 ## Limits, stated up front

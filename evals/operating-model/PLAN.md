@@ -2174,7 +2174,19 @@ if (import.meta.url === `file://${process.argv[1]}`) {
 - [ ] **Step 4: Run the test to verify it passes**
 
 Run: `node --test evals/runner/report.test.mjs`
-Expected: 4 passing tests.
+Expected: 8 passing tests — the snippet's four, plus four for the properties the design argues for at length and those four do not reach. This is the layer where a bug misdirects the conclusion rather than one run:
+
+- **Both halves of the rate-vs-count argument.** A count-based threshold passes every test in the snippet above: it fires falsely on 5/5 against a baseline 10/10 (equal performance, five errors) and stays silent on a real 5/5 → 3/10 collapse. Both are now asserted.
+- **Bundle deltas exclude controls.** One edit working perfectly beside one flat control must report 100%, not 50%.
+- **A disagreeing tier blocks `theoretical-finding`**, while a single-tier (Opus-only behavioral) case can still raise it.
+- **The rendered markdown carries provenance and the prediction column** — see below.
+
+Two additions to `render`, both because a number that cannot be read correctly is worse than no number:
+
+1. **A `predicts` column.** A control and a predicted-fail case are read in opposite directions, and `r06`'s baseline column is *compliance with the old rule* rather than an error. The design says the report must label it that way; a table of bare rates invites exactly that misreading.
+2. **A `## Provenance` section** — run count, how many scored `error`, the isolation mode, total hook events, and the resolved model id per tier. Task 6 requires the isolation mode to be recorded with the results, and a contaminated run's numbers must never be read as isolated ones. Hook events greater than zero in a run claiming isolation says isolation did not hold, and the resolved snapshot is the reason `resolvedModel` is captured per run at all.
+
+Driving the full matrix through the stub from Task 8 (`--reps 1`, no tokens) expands to **80 rows over 46 case-arm combinations**, which is the calibration size the design predicts — an arithmetic check `validate.mjs` cannot make, since it counts combinations without multiplying by reps. It also makes one design property visible in the rendered table: bundle B's haiku delta is `—`, because B has no predicted-fail routing case, so on that tier B carries only controls and its entire signal rides on three Opus behavioral cases at N=3.
 
 - [ ] **Step 5: Run the full suite, all five arms**
 
