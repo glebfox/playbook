@@ -1360,6 +1360,14 @@ export function selfCheck(dir, arm, world) {
 }
 ```
 
+Three corrections were needed while implementing the code above, all in it now:
+
+1. **`git apply` needs `--unidiff-zero`.** The arm patches carry zero context by construction (see Task 3), so a plain `git apply` refuses them and every arm would stage as baseline.
+2. **`history.sh` must not run in the `day-1` world.** It replays commits over `lib/`, `domain/transaction/` and the specs, none of which exist there. Under `set -eu` it aborts — but worse, its `>>` redirections would *create* the code files day-1 must not have. Day-1 instead gets `git init` plus one commit, which is the realistic state of a repository holding only its documentation.
+3. **The `day-1` overlay is applied after pruning**, before the arm-owned `ARCHITECTURE.md` is written. Whitelisting alone keeps three month-3 documents that are false on day 1.
+
+And one addition: `selfCheck` also checks **one marker per bundle in the vendored document**. In `month-3`, arms A and C differ only in document body text, so the fixture-artifact rows alone cannot tell a mis-materialized A tree from a C tree — a swapped patch, or one that silently failed to apply, would stage as a valid-looking tree and produce confident meaningless numbers. With the document rows, all 20 mismatched arm pairs are flagged and each arm's own tree is clean.
+
 - [ ] **Step 4: Run the test to verify it passes**
 
 Run: `node --test evals/runner/stage.test.mjs`
