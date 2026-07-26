@@ -68,7 +68,7 @@ Map of this repository's knowledge base. A table of contents, not an encyclopedi
 - **docs/conventions.md** — code style and commit conventions. How code is *written and committed*.
 - **docs/guidelines/** — reusable cross-cutting mechanics: how the framework/platform works, plus the test harness & strategy. Pointers only; not loaded by default.
 - **docs/decisions/** — append-only log of significant decisions: context, choice, rejected alternatives. The *why* behind the facts.
-- **docs/vision.md** — what we are building and why; scope and rationale; increment descriptions.
+- **docs/vision.md** — what we are building and why; scope and rationale; increment descriptions; **and the intended stack and layout until they are built and migrate to ARCHITECTURE.md.**
 - **docs/roadmap.md** — the increment sequence and status, plus the future-development backlog. What is left to do.
 - **docs/specs/<axis>/*.md** — current API/behavior of each unit. The system of record per unit.
 - **docs/tests/<axis>/*.md** — per-unit test-coverage matrix (automated vs live), mirroring the specs.
@@ -109,7 +109,7 @@ Bug fixes, chores, and small adjustments don't get the ceremony: no design, no p
 When applying this model to a new repo:
 
 1. Establish `docs/vision.md` first (via a brainstorm): purpose, scope (MVP vs future), and an increment breakdown.
-2. Record the intended stack, layout, and architecture in `docs/vision.md` (step 1) — before code exists these are intent, not facts. Create `ARCHITECTURE.md` as a near-empty placeholder: it holds only what is **already built**, so on a fresh repo it stays almost empty and fills in as code lands — do not pre-populate it with the planned stack. Create `docs/conventions.md` with only the conventions already settled (language, commit format), thin otherwise. Move any such facts that accumulated in CLAUDE.md/AGENTS.md into whichever fits.
+2. Record the intended stack, layout, and architecture in `docs/vision.md` (step 1) — before code exists these are intent, not facts. Create `ARCHITECTURE.md` as a near-empty placeholder: it holds only what is **already built**, so on a fresh repo it stays almost empty and fills in as code lands — do not pre-populate it with the planned stack. Its day-one content is a single status line — `Status: nothing built yet; the intended stack and layout live in docs/vision.md` — which is a fact about the file's own state, not a placeholder, and keeps the map from dead-ending. Create `docs/conventions.md` with only the conventions already settled (language, commit format), thin otherwise. Move any such facts that accumulated in CLAUDE.md/AGENTS.md into whichever fits.
 3. Reduce CLAUDE.md/AGENTS.md to a thin map of pointers + durable workflow rules.
 4. Create `docs/roadmap.md` from the increments in the vision.
 5. Create `docs/specs/<axis>/`, `docs/tests/<axis>/`, and `docs/increments/active|completed/` lazily, at the start of the first increment; create `docs/guidelines/` the first time a reusable framework/platform mechanic (including the test harness) is worth recording, and `docs/decisions/` the first time a decision clears the bar.
