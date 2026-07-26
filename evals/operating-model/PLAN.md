@@ -83,7 +83,9 @@ Nothing in this phase calls a model. Its deliverables are checked by `git log`, 
 - Create: `evals/operating-model/fixture/ledger/{app/transactions/page.tsx,domain/transaction/{rules.ts,index.ts},lib/money.ts,db/schema.ts,package.json}`
 - Create: `evals/operating-model/fixture/mid-increment/{docs/increments/active/2026-07-20-seed-and-backdate/{design.md,plan.md},db/seed.ts,package.json}` — the additive overlay for `world: month-3-mid-increment`, used by `b04` only
 - Create: `evals/operating-model/fixture/day-1.whitelist`
+- Create: `evals/operating-model/fixture/day-1/{ARCHITECTURE.md,docs/{vision.md,roadmap.md}}` — the day-1 overlay, applied over the whitelisted copy
 - Create: `evals/operating-model/fixture/assert-fixture.mjs`
+- Create: `evals/operating-model/fixture/assert-day1.mjs`
 
 **Interfaces:**
 - Consumes: nothing.
@@ -116,6 +118,8 @@ Read the two classes together: each file must **state** what its cases need to f
 | `domain/transaction/rules.ts` | a `rejectZeroAmount` guard signature | `rejectFutureDate` | r04 |
 
 The two `budget.md` requirements are what make `r04`'s bait real rather than rhetorical: budgets both allow a zero limit and legitimately start in the future, so a rule of either shape promoted into a guideline lands on a unit where it is false. That is the contagion the asymmetry edit prevents, and without those two lines in the fixture the case has nothing to be wrong about.
+
+**The `day-1` overlay** lives in `fixture/day-1/` and is copied over the whitelisted tree, replacing `docs/vision.md`, `docs/roadmap.md` and `ARCHITECTURE.md`. A whitelist alone cannot build this world: it would hand day-1 the month-3 vision ("four increments have landed", "balances have reconciled for six weeks") and the month-3 `ARCHITECTURE.md`, which records the whole stack. The first contradicts `r05`'s premise that no code exists; the second **disarms `r05` outright**, because the fact `r05` routes would already be written, in the one file `r05` forbids. Day-1 `ARCHITECTURE.md` is the H1 and nothing else — bootstrap step 2's near-empty file, and the empty-file dead end S1 found; the `Status:` line stays arm-owned. Two whitelist entries — `CLAUDE.md` and `docs/operating-model.md` — are arm-written and absent from `ledger/`, so a copy loop that assumes every whitelisted path exists there throws on them.
 
 **The `month-3-mid-increment` overlay** lives in `fixture/mid-increment/` and is copied over `ledger/` additively — never merged into it, because `b02` and `b03` must run in a world with an empty `active/`. It holds `docs/increments/active/2026-07-20-seed-and-backdate/{design.md,plan.md}`, `db/seed.ts`, and a `package.json` carrying a `db:seed` script. Its design describes work that has already landed: a seed command, and imported-transaction backdating re-running the dedupe check.
 
@@ -324,6 +328,14 @@ test -f /tmp/mi/docs/increments/active/2026-07-20-seed-and-backdate/design.md &&
 ```
 
 Expected: `OK 38 facts` (the overlay adds nothing a case routes) then `OK overlay`. The two `grep`s are the point: `cpSync` **replaces** `package.json` rather than merging it, so the overlay's copy must be the base file plus the `db:seed` script and byte-identical otherwise. An overlay carrying only a `scripts` block would strand the staged world with no dependencies, and an agent asked to consolidate a finished increment in a project with no framework listed may reasonably balk.
+
+- [ ] **Step 5c: Assert the day-1 world**
+
+```bash
+node evals/operating-model/fixture/assert-day1.mjs
+```
+
+Expected: `OK day-1 world: 14 checks, 5 files`. The script composes the world itself — whitelist from `ledger/`, then `fixture/day-1/` over it — so it is also the reference implementation of the contract `stage.mjs` must follow, documented in its header. Run it against a directory (`assert-day1.mjs <dir>`) to check a staged tree instead. Against a whitelist-only tree it fails 6 checks, which is the pre-overlay state: the vision claims shipped work and `ARCHITECTURE.md` names the stack.
 
 - [ ] **Step 6: Commit**
 
