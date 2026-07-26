@@ -5,10 +5,20 @@ import { join } from 'node:path'
 
 const PATH_RE = /(?:[\w.@-]+\/)+[\w.@*-]+|\b[\w-]+\.(?:md|ts|tsx|json|sh|mjs)\b/g
 
-// DESIGN.md § Delivery: the five parts, in order, identical across arms except arm-owned content.
+// DESIGN.md § Delivery, as revised after the first calibration run.
+//
+// The vendored `docs/operating-model.md` is deliberately NOT injected. Injecting it produced a
+// ceiling: 68 routing runs, baseline 100% on every case and both tiers, all six predicted-fail
+// cases flagged as theoretical findings. Handing the model the complete rulebook in-context removes
+// the very condition the panel's findings came from — a session that follows the thin CLAUDE.md map
+// and never opens the full model. What remains is what such a session actually holds: the map, the
+// file tree, and the two specs it would have open.
+//
+// The cost is explicit and accepted: bundle C is all document body, so it is now invisible here.
+// It stays observable in the behavioral layer, where the vendored copy sits in the tree and an agent
+// may read it — the first thing b01's session did.
 const ROUTING_CONTEXT = [
   'CLAUDE.md',
-  'docs/operating-model.md',
   'docs/specs/domains/transaction.md',
   'docs/specs/domains/budget.md',
 ]
@@ -21,10 +31,11 @@ const ROUTING_CONTEXT = [
 // that expect it, inflating the baseline and biasing bundle A's delta toward null.
 const DAY_1_EXTRA = ['ARCHITECTURE.md']
 
-// Every tool that could add anything to a routing run's context. Verified to hold on Opus, which
-// otherwise reads the staged tree. Listing tools explicitly is unpleasant but it is the only
-// mechanism the CLI offers that actually blocks rather than merely un-pre-approves.
-const ROUTING_DENY = 'Read,Glob,Grep,Bash,BashOutput,WebFetch,WebSearch,Task,TodoWrite,Edit,Write,NotebookEdit,SlashCommand,Skill'
+// Deny every tool. A wildcard rather than a name list, because a list is a maintenance trap: the
+// first version named fourteen tools and Opus escaped it through `ToolSearch`, the deferred-tool
+// loader, which nobody thought to include. `*` closes the class instead of chasing it.
+// Verified: `StructuredOutput` still arrives, because the schema mechanism is not gated by this flag.
+const ROUTING_DENY = '*'
 
 export function composeRoutingPrompt(dir, question, world = existsSync(join(dir, 'docs/specs')) ? 'month-3' : 'day-1') {
   const parts = []

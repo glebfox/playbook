@@ -19,9 +19,9 @@ test('routing args carry verbose, json schema, a budget cap, and safe-mode isola
   // --allowedTools '' only withholds pre-approval; a read-only tool needs none. Opus was observed
   // reading ARCHITECTURE.md out of the staged tree with it set, so the deny list is what blocks.
   assert.ok(a.includes('--disallowedTools'))
-  const deny = a[a.indexOf('--disallowedTools') + 1]
-  for (const t of ['Read', 'Glob', 'Grep', 'Bash', 'WebFetch', 'WebSearch', 'Task'])
-    assert.ok(deny.split(',').includes(t), `${t} must be denied in a routing run`)
+  // A wildcard, not a name list: the list version named fourteen tools and Opus escaped through
+  // ToolSearch, which loads the rest on demand. Enumerating tools is a race against the toolset.
+  assert.equal(a[a.indexOf('--disallowedTools') + 1], '*')
 })
 
 test('behavioral args allow tools, omit the json schema, and never use safe-mode', () => {
@@ -98,12 +98,15 @@ test('isBroken passes a real run', () => {
   assert.equal(isBroken(parseStream(stream)), null)
 })
 
-test('routing prompt carries all five delivery parts', () => {
+test('routing prompt carries the map, the tree and the specs — but not the full document', () => {
   const sha = readFileSync('evals/operating-model/arms/BASELINE_SHA', 'utf8').trim()
   const { dir, cleanup } = stage({ suite: 'evals/operating-model', arm: 'C', world: 'month-3', baselineSha: sha })
   const p = composeRoutingPrompt(dir, 'Where does this fact belong?')
   assert.match(p, /# Ledger/, 'the concrete CLAUDE.md is included')
-  assert.match(p, /Operating Model: Repository as System of Record/, 'the vendored document body is included — bundle C lives only here')
+  // Injecting the full model produced a 100% baseline ceiling across 68 runs: a session holding the
+  // whole rulebook routes correctly regardless of the edits, which is not the condition under test.
+  assert.doesNotMatch(p, /Operating Model: Repository as System of Record/, 'the full document must NOT be injected')
+  assert.match(p, /docs\/operating-model\.md/, 'it is still visible in the tree, as a real session would see it')
   assert.match(p, /docs\/specs\/domains\/budget\.md/, 'the file tree is included')
   assert.match(p, /zero/i, 'budget.md content is included, so the contagion bait is live')
   assert.ok(p.lastIndexOf('Where does this fact belong?') > p.indexOf('Operating Model'), 'the question comes last')

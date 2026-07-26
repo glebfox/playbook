@@ -13,6 +13,9 @@ const suite = arg('--suite', 'evals/operating-model')
 const runId = arg('--run-id')
 const repsOverride = arg('--reps') ? Number(arg('--reps')) : null
 const only = arg('--case')
+// --arm narrows to one arm. Cheap probes (does the baseline ceiling break?) otherwise cost a full
+// sweep, and after a delivery change the baseline column is the only one worth re-measuring first.
+const onlyArm = arg('--arm')
 if (!runId) { console.error('--run-id is required (e.g. calibration-1, full-1)'); process.exit(2) }
 
 // Isolation now differs by family, because the CLI's verified behavior differs:
@@ -65,7 +68,7 @@ for (const fam of ['routing', 'behavioral']) {
 
 let done = 0, skipped = 0
 for (const c of cases) {
-  for (const arm of armsFor(c)) {
+  for (const arm of armsFor(c).filter(a => !onlyArm || a === onlyArm)) {
     for (const [model, reps] of Object.entries(c.reps)) {
       for (let rep = 1; rep <= (repsOverride ?? reps); rep++) {
         if (alreadyDone.has(`${c.id}|${arm}|${model}|${rep}`)) { skipped++; continue }
