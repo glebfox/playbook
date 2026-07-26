@@ -1,0 +1,10 @@
+1	Status: nothing built yet
+1b	intended stack and layout
+2	architectural convention.*ARCHITECTURE\.md
+11	never a source for current state
+12	near-empty file
+3	Reconciled: <increment-slug>
+4	## Reading order
+5a	^- Keep this file a thin map: every fact category has a home in the map above
+8	When unsure, leave it in the spec
+9	Conventions.*are facts about what is \*\*in force\*\*
