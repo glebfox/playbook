@@ -89,9 +89,10 @@ Map of this repository's knowledge base. A table of contents, not an encyclopedi
 ## Documentation Hygiene
 
 - Keep this file a thin map: every fact category has a home in the map above. Don't duplicate here.
-- A spec says *what a unit is*; the framework/platform mechanics behind it (the *how*) live in docs/guidelines/, not in a spec. Unit-fact vs framework-mechanic, not unique-vs-shared. The same split applies to tests: per-unit coverage → docs/tests/<axis>/; the test harness & strategy → docs/guidelines/. A test doc lists gaps too (not-yet-tested behaviors, with a reason), so it doubles as a TODO.
+- A spec says *what a unit is*; the framework/platform mechanics behind it (the *how*) live in docs/guidelines/, not in a spec. Unit-fact vs framework-mechanic, not unique-vs-shared. **When unsure, leave it in the spec** — a mechanic left in a spec is duplication the next unit's consolidation lifts out, but a unit fact promoted into a guideline gets applied to units it was never true of. The same split applies to tests: per-unit coverage → docs/tests/<axis>/; the test harness & strategy → docs/guidelines/. A test doc lists gaps too (not-yet-tested behaviors, with a reason), so it doubles as a TODO.
 - After an increment touches a unit, update its durable spec and its test-coverage doc so both reflect reality — or ARCHITECTURE.md, when the changed behavior is a project-wide convention that no single unit owns.
-- Facts and their why live apart: a living doc links to the docs/decisions/ entry for rationale, never restates it. A decision file is never edited to match the present — supersede it with a new one. A decision is never a source for current state — that is what the living docs are for.
+- Every spec opens with `Source:` (the code paths it describes) and `Reconciled: <increment-slug> (<sha>)`, refreshed at every consolidation. `git log <sha>..HEAD -- <source paths>` says whether the code has moved past the spec; if it has, the code wins and updating the spec is part of the current change.
+- Facts and their why live apart: a living doc links to the docs/decisions/ entry for rationale, never restates it. A decision file is never edited to match the present — supersede it with a new one. A decision is never a source for current state — that is what the living docs are for. The bar for getting a file at all: hard to reverse, counterintuitive, or keeps getting re-litigated; routine choices don't get one.
 - An increment's design and plan stop being the source of truth once its directory moves to `completed/`.
 ```
 
