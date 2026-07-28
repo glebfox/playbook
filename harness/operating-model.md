@@ -53,9 +53,9 @@ Do NOT keep a single "current-state" snapshot file — current state is the sum 
 
 **Fact vs decision.** A living doc records *what is*; a decision records *why it is that way*. When a choice lands, the resulting fact goes into the living docs — an architectural convention into ARCHITECTURE.md, a unit behavior into its spec, a platform mechanic into a guideline — and evolves with reality. The reasoning behind it — the context at the time, the alternatives rejected, the trade-offs accepted — goes into `docs/decisions/` and never evolves: when reality moves on, the fact is updated in place and the decision is superseded by a new entry, not rewritten. The living doc links to the decision for the why instead of restating it; the decision never serves as a source for current state. Example: "all money amounts are integer cents" is a fact — an architectural convention in ARCHITECTURE.md; *why cents rather than decimals*, and what was rejected, is its entry in `docs/decisions/`.
 
-### Example: a thin CLAUDE.md
+### Template: a thin CLAUDE.md
 
-A project-agnostic skeleton (placeholders in `<...>`). It shows the discipline: a map plus the durable Workflow and Documentation Hygiene rules, and nothing else.
+A project-agnostic skeleton (placeholders in `<...>`). It shows the discipline: a map plus the durable Workflow and Documentation Hygiene rules, and nothing else. It is consumed at bootstrap — the adopting project writes its own `CLAUDE.md` from it and does not keep the template.
 
 ```markdown
 # <Project> — Guidance
