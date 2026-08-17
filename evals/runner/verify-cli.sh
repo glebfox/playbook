@@ -1,0 +1,156 @@
+#!/bin/sh
+# Task 6 steps 5 and 5b: verify auth and the six CLI assumptions the code makes but the
+# verified-facts table does not cover. MUST run from a normal terminal — nested `claude`
+# invocations from inside a Claude Code session fail auth (keychain unreachable from the sandbox).
+#
+# Usage:  sh evals/runner/verify-cli.sh            # subscription auth, host hooks fire
+#         ANTHROPIC_API_KEY=sk-... sh evals/runner/verify-cli.sh    # also tries isolated mode
+#
+# Every check prints PASS/FAIL plus the raw evidence, so a failure can be diagnosed without
+# re-running. Record the outcomes under a "Verified CLI facts" heading in
+# evals/operating-model/README.md, and fix anything that fails before the calibration run.
+set -u
+cd "$(dirname "$0")/../.." || exit 1
+ROOT=$(pwd)
+OUT=$(mktemp -d)
+SUITE=evals/operating-model
+SHA=$(cat $SUITE/arms/BASELINE_SHA)
+SCHEMA='{"type":"object","properties":{"destination":{"type":"string"}},"required":["destination"],"additionalProperties":false}'
+pass() { echo "PASS  $1"; }
+fail() { echo "FAIL  $1"; }
+note() { echo "      $1"; }
+
+# A staged month-3 baseline tree, so the checks run against the real fixture.
+DIR=$(node -e "
+import('./evals/runner/stage.mjs').then(({stage})=>{
+  const s = stage({suite:'$SUITE', arm:'baseline', world:'month-3', baselineSha:'$SHA'})
+  console.log(s.dir)   // deliberately not cleaned up; this script removes it at the end
+})")
+echo "staged fixture: $DIR"
+echo
+
+# ---------------------------------------------------------------- step 5: auth
+echo "== step 5: auth =="
+claude -p 'Reply with only: ok' --model haiku --output-format stream-json --verbose > "$OUT/auth.jsonl" 2>"$OUT/auth.err"
+COST=$(node -e "const l=require('fs').readFileSync('$OUT/auth.jsonl','utf8').trim().split('\n');const r=l.map(x=>{try{return JSON.parse(x)}catch{return{}}}).find(e=>e.type==='result');console.log(r?[r.subtype,r.total_cost_usd,r.num_turns].join(' '):'no-result')")
+TEXT=$(node --input-type=module -e "const {readFileSync}=await import('node:fs');const {parseStream}=await import('./evals/runner/invoke.mjs');console.log(parseStream(readFileSync('$OUT/auth.jsonl','utf8')).answerText.slice(0,120))")
+note "result(subtype cost turns): $COST"
+note "answer: $TEXT"
+case "$TEXT" in
+  *"Not logged in"*|"") fail "auth — no measurement is possible until this works"; echo; echo "Stopping: every later check would fail for the same reason."; rm -rf "$DIR" "$OUT"; exit 1 ;;
+  *) pass "auth (assistant text is present and no login prompt)" ;;
+esac
+echo
+
+# ---------------------------------------------------------------- 5b.1 tool suppression
+echo "== 5b.1: does --allowedTools '' actually disable tools in a routing run? =="
+SCHEMA="$SCHEMA" node --input-type=module -e "
+const {invoke, composeRoutingPrompt} = await import('./evals/runner/invoke.mjs')
+const p = await invoke({dir:'$DIR', prompt: composeRoutingPrompt('$DIR','A one-line change just settled how this app rounds: half-up when formatted, stored values never rounded.'),
+  model:'haiku', family:'routing', caps:{budgetUsd:0.5, timeoutMs:120000}, jsonSchema:process.env.SCHEMA, isolated:false})
+const {writeFileSync} = await import('node:fs')
+writeFileSync('$OUT/routing.json', JSON.stringify(p,null,1))
+console.log('real tool calls:', p.toolCalls.length, JSON.stringify(p.toolCalls.map(c=>c.name)))
+console.log('structured field:', JSON.stringify(p.structuredOutput))
+console.log('answer text:', JSON.stringify(p.answerText.slice(0,160)))
+console.log('hook events:', p.hookEvents, '| model:', p.model, '| result:', p.result && p.result.subtype)
+" 2>&1 | tee "$OUT/routing.log"
+# `StructuredOutput` is how --json-schema returns the answer, not the model exploring the tree, so
+# parseStream keeps it out of toolCalls. Counting it here condemned a working configuration once.
+TOOLS=$(grep -o 'real tool calls: [0-9]*' "$OUT/routing.log" | grep -o '[0-9]*$')
+[ "$TOOLS" = "0" ] && pass "no tool calls in a routing run" || fail "$TOOLS tool call(s) leaked — find the real flag (--disallowedTools, or --permission-mode with an empty allowlist)"
+echo
+
+# ---------------------------------------------------------------- 5b.2 structured output shape
+echo "== 5b.2: where does the --json-schema answer actually arrive? =="
+if grep -q 'structured field: {"destination"' "$OUT/routing.log"; then
+  pass "as a validated StructuredOutput field, which is where grade() now reads it"
+  note "The text block carries a fenced copy plus reasoning prose — grading the field, not the prose,"
+  note "is what stops arm C being penalised for articulating the trade-off its own edit teaches."
+else
+  fail "no validated destination field — every routing run would grade 'error'"
+  note "inspect $OUT/routing.json for where the structured answer actually landed"
+fi
+echo
+
+# ---------------------------------------------------------------- 5b.3 init event carries .model
+echo "== 5b.3: does system/init carry .model? =="
+MODEL=$(grep -o 'model: [^ |]*' "$OUT/routing.log" | head -1 | cut -d' ' -f2)
+[ -n "$MODEL" ] && [ "$MODEL" != "null" ] && pass "resolved model id: $MODEL" || fail "no model id — model drift becomes untraceable in the ledger"
+echo
+
+# ---------------------------------------------------------------- 5b.4 budget exhaustion subtype
+echo "== 5b.4: how does budget exhaustion surface? =="
+claude -p 'Count slowly from 1 to 500, one number per line, no other text.' --model haiku \
+  --output-format stream-json --verbose --max-budget-usd 0.001 > "$OUT/budget.jsonl" 2>&1
+SUB=$(node -e "const l=require('fs').readFileSync('$OUT/budget.jsonl','utf8').trim().split('\n');const r=l.map(x=>{try{return JSON.parse(x)}catch{return{}}}).filter(e=>e.type==='result').pop();console.log(r?r.subtype:'no-result')")
+note "result subtype under an exhausted budget: $SUB"
+[ "$SUB" != "success" ] && pass "a cap-hit is distinguishable from success, so grade() can score it 'error'" \
+  || fail "cap-hits report success — cap-hits would score 'fail', reintroducing treatment-correlated censoring"
+echo
+
+# ---------------------------------------------------------------- 5b.5 non-zero cost in fallback mode
+echo "== 5b.5: is total_cost_usd non-zero under subscription auth? =="
+C=$(node -e "const l=require('fs').readFileSync('$OUT/auth.jsonl','utf8').trim().split('\n');const r=l.map(x=>{try{return JSON.parse(x)}catch{return{}}}).find(e=>e.type==='result');console.log(r?r.total_cost_usd:'?')")
+note "total_cost_usd: $C"
+node -e "process.exit(Number('$C')>0?0:1)" && pass "non-zero, so isBroken's zero-cost heuristic does not blanket-error real runs" \
+  || fail "zero cost under subscription auth — isBroken would reject every run; relax the heuristic to num_turns<=1 plus the login-text match"
+echo
+
+# ---------------------------------------------------------------- 5b.6 isolated mode
+echo "== 5b.6: does --setting-sources project suppress hooks and still load the project CLAUDE.md? =="
+if [ -n "${ANTHROPIC_API_KEY:-}" ]; then
+  claude -p 'Quote the first line of this project CLAUDE.md verbatim, and nothing else.' --model haiku \
+    --output-format stream-json --verbose --setting-sources project > "$OUT/iso.jsonl" 2>&1
+  HOOKS=$(grep -c '"subtype":"hook' "$OUT/iso.jsonl")
+  if grep -q 'Ledger' "$OUT/iso.jsonl"; then pass "the project CLAUDE.md still reaches the model in isolated mode"
+  else fail "the project CLAUDE.md did NOT reach the model — bundle B's behavioral channel would be dead"; fi
+  [ "$HOOKS" = "0" ] && pass "no hook events: isolated mode is clean" || fail "$HOOKS hook event(s) still fired"
+  note "run this one with cwd inside the staged fixture for a true reading; see $OUT/iso.jsonl"
+else
+  fail "skipped: ANTHROPIC_API_KEY is not set"
+  note "Without it, --setting-sources project breaks auth (verified fact), so the suite runs in"
+  note "fallback mode and run.mjs requires --allow-contaminated. Host hooks then fire in every run:"
+  note "arm-invariant contamination, but the skills gate may push the model to read more and mask bundle B."
+fi
+echo
+# ---------------------------------------------------------------- 5b.7 isolation without an API key
+# Both candidates below aim for the same thing as --setting-sources project (no host hooks) while
+# keeping subscription auth, so the suite never needs a per-token-billed API key. If either works,
+# it is strictly better than the fallback mode: hooks are what can mask bundle B.
+echo "== 5b.7: does --safe-mode suppress hooks and keep subscription auth? =="
+claude -p 'Reply with only: ok' --model haiku --output-format stream-json --verbose --safe-mode > "$OUT/safe.jsonl" 2>&1
+SAFE_HOOKS=$(grep -c '"subtype":"hook' "$OUT/safe.jsonl")
+SAFE_TEXT=$(node --input-type=module -e "const {readFileSync}=await import('node:fs');const {parseStream}=await import('./evals/runner/invoke.mjs');console.log(parseStream(readFileSync('$OUT/safe.jsonl','utf8')).answerText.slice(0,60))")
+note "hook events: $SAFE_HOOKS | answer: $SAFE_TEXT"
+case "$SAFE_TEXT" in
+  *"Not logged in"*|"") fail "--safe-mode breaks auth too" ;;
+  *) [ "$SAFE_HOOKS" = "0" ] && pass "--safe-mode: auth intact, no hooks" || fail "--safe-mode kept auth but $SAFE_HOOKS hook event(s) fired" ;;
+esac
+note "If this passes it covers the 510 ROUTING runs cleanly: --safe-mode also disables the project"
+note "CLAUDE.md, which those runs do not need — their context is pre-assembled into the prompt."
+note "It does NOT suit the 36 behavioral runs, which must discover the fixture's CLAUDE.md normally."
+echo
+
+echo "== 5b.8: does a hooks-stripped CLAUDE_CONFIG_DIR keep auth? =="
+CFG=$(mktemp -d)
+node -e "
+const {readFileSync,writeFileSync}=require('fs'), {homedir}=require('os')
+const s=JSON.parse(readFileSync(homedir()+'/.claude/settings.json','utf8'))
+delete s.hooks
+writeFileSync('$CFG/settings.json', JSON.stringify(s,null,2))
+console.log('wrote settings.json without hooks')"
+CLAUDE_CONFIG_DIR="$CFG" claude -p 'Reply with only: ok' --model haiku --output-format stream-json --verbose > "$OUT/cfg.jsonl" 2>&1
+CFG_HOOKS=$(grep -c '"subtype":"hook' "$OUT/cfg.jsonl")
+CFG_TEXT=$(node --input-type=module -e "const {readFileSync}=await import('node:fs');const {parseStream}=await import('./evals/runner/invoke.mjs');console.log(parseStream(readFileSync('$OUT/cfg.jsonl','utf8')).answerText.slice(0,60))")
+note "hook events: $CFG_HOOKS | answer: $CFG_TEXT"
+case "$CFG_TEXT" in
+  *"Not logged in"*|"") fail "auth does not survive a relocated config dir — credentials are tied to it, not to the keychain" ;;
+  *) [ "$CFG_HOOKS" = "0" ] && pass "hooks gone, auth intact — this is isolation on subscription auth, usable for BEHAVIORAL runs too" \
+       || fail "auth intact but $CFG_HOOKS hook event(s) still fired" ;;
+esac
+note "This also drops plugins and skills, which is more than hooks — record it as the run's isolation mode."
+note "config dir used: $CFG"
+echo
+echo "artifacts: $OUT"
+rm -rf "$DIR"

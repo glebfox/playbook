@@ -1,0 +1,3 @@
+{"type":"system","subtype":"init","model":"claude-fake-1","cwd":"/private/var/folders/_s/xxbc8q350w9dgq_s0yptt8p80000gp/T/eval-B-dPu4BW"}
+{"type":"assistant","message":{"content":[{"type":"text","text":"done"}]}}
+{"type":"result","subtype":"success","num_turns":1,"total_cost_usd":0.4}
