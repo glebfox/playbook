@@ -8,14 +8,14 @@ The model assumes an agent that reads the code before acting and re-checks what 
 
 ## Principles
 
-- **Write down only what the repository cannot tell.** Docs hold intent (the vision), the why behind choices (decisions), the state of unfinished work (the roadmap and the open increment), and rules that tooling does not enforce and the code does not show. Everything else is read from the code. Where a doc and the code disagree, the code wins and the doc is fixed in the same change.
+- **Write down only what the repository cannot tell.** Docs hold intent (the vision), the why behind choices (decisions), the state of unfinished work (the roadmap and the open increment), and rules that tooling does not enforce and the code does not show. Everything else is read from the code. Where the code has moved past a doc, the code wins and the doc is fixed in the same change.
 - **System of record is the repo, not chat.** Decisions, intent, and current state live in versioned files, not in conversation history.
 - **Table of contents, not encyclopedia.** The entry-point file is a thin map of pointers; detail lives in the documents it links to, read only when needed.
 - **One authoritative home.** Every durable fact has exactly one home; other docs link to it rather than restate it. Intent and the fact it became are not one fact with two homes: `docs/vision.md` saying what we set out to build and `ARCHITECTURE.md` recording what is built will often read alike, and neither is a duplicate to delete.
 - **Facts, not plans.** What the living docs (`ARCHITECTURE.md`, the specs) *describe* is what is already realized in code. The chosen stack, the planned layout, the intended contract are intent until they land: they live in the vision and the open increment, never in a living doc. A living doc with nothing to record yet stays nearly empty; that is correct, not a gap to fill with placeholders.
 - **Enforce, then point.** A rule that tooling checks — formatter, linter, type checker, architecture tests — lives in the tooling; a doc at most names the rule and where it is enforced.
 - **Facts live apart from their why.** Living docs record what the system is; the reasoning behind a significant choice — context, rejected alternatives, trade-offs — is recorded once, append-only, in `docs/decisions/`. Living docs link to it instead of restating it.
-- **Source of truth follows the work.** During an open increment its code is authoritative for what already runs, and its design and plan for scope, approach, and remaining work; living docs may still describe the last stable state until consolidation, which happens before the change is integrated. When the increment closes, its design and plan are deleted: history lives in version control, not in the working tree, where a search would find it and mistake it for the present.
+- **Source of truth follows the work.** During an open increment its code is authoritative for what already runs, and its design and plan for scope, approach, and remaining work; living docs may still describe the last stable state until consolidation, which happens before the change is integrated. When the increment closes, its design and plan are deleted: history lives in version control (the commits, or the merged pull request), not in the working tree, where a search would find it and mistake it for the present.
 
 ## Document structure
 
@@ -25,7 +25,7 @@ ARCHITECTURE.md           # what is built: where things live, boundaries and inv
 docs/
   vision.md               # what we are building and why; scope (MVP vs future); increments; intended architecture
   roadmap.md              # authoritative increment status + sequence + future backlog
-  conventions.md          # rules for writing and committing code that tooling does not enforce
+  conventions.md          # rules for writing and committing code that tooling does not enforce and the code does not show
   guidelines/             # project-specific mechanics of the platform and the test harness that the code does not make obvious
   decisions/              # append-only decision log: one file per significant decision
   reference/              # optional: dated external research the project relies on; frozen
@@ -42,7 +42,7 @@ Role of each file:
 - **docs/vision.md** — product intent: the scope (MVP vs future), the increments as descriptions (what each is and why, not their status), and the intended architecture, which stays here as intent even once built. Its architecture section opens with `Intent, not current state; ARCHITECTURE.md is authoritative for what exists.` The vision is updated when intent changes — scope moved, increments added, split, or dropped, a target reconsidered — and never because code landed. A direction abandoned rather than realized is marked superseded in place, not deleted. The vision never depends on the decision log.
 - **docs/roadmap.md** — the authoritative status and sequence of each increment, plus the future-development backlog, which lives only here. Entries are short and structured; descriptions stay in the vision, subtasks in the plan, discussion in the design.
 - **docs/conventions.md** — rules for writing and committing code that tooling does not enforce and the existing code does not consistently show: commit format, the language of artifacts, a rule just adopted that older code does not follow yet, a counterintuitive house rule. How much lands here depends on the stack and its tooling; style that a formatter or linter enforces is not restated. Created when the first such rule is settled.
-- **docs/guidelines/** — project-specific mechanics of the framework, platform, or tooling that no single unit owns and the code does not make obvious: gotchas found the hard way, patterns that must be followed. Not a retelling of the framework's own documentation. The test harness and strategy live here too: how tests run, what is automated, and what can only be checked live. Registered as pointers from the map and read when implementing, not loaded by default.
+- **docs/guidelines/** — project-specific mechanics of the framework, platform, or tooling that no single unit owns and the code does not make obvious: gotchas found the hard way, patterns that must be followed. Not a retelling of the framework's own documentation. The test harness and strategy live here too: how tests run and what can only be checked live. Registered as pointers from the map and read when implementing, not loaded by default.
 - **docs/decisions/** — the append-only decision log: one file per significant decision, `NNNN-<slug>.md` (the number is a short citable handle — "see decision 0007"), structured as Status / Context / Decision / Consequences, with the rejected alternatives inside Context or Decision. The body never changes; only the Status does (`accepted` → `superseded by 0012`). The bar: hard to reverse, counterintuitive, or keeps getting re-litigated; routine choices get no file. A decision is recorded when it is acted on — a choice agreed but not yet implemented is still intent. It is never a source for current state.
 - **docs/reference/** — optional: verified external research the project relies on but does not own, e.g. what a reference product's public API documents. Each file is dated and frozen; redone research supersedes it in a new file. Never a source for what the product does: a spec or an open design wins.
 - **docs/specs/\<axis\>/** — one file per long-lived unit, grouped by unit type (a focused project may need a single axis). A spec describes **what the unit does**: its purpose, its behavior as its users — people or other code — see it, its contract, and the rules the code does not make obvious. Not how it is implemented. The test: a statement belongs in the spec only if it stays true after a refactor that preserves behavior. "A disabled button looks distinct and cannot take focus" passes; "the button's color comes from `--btn-color`" fails — it repeats the code. Each spec opens with `Source:`, the code paths it describes, and may end with **Not covered**: behaviors no automated test checks, each with a reason, including those verified only live. What the tests do cover is the test suite itself; the spec does not list it.
@@ -61,18 +61,18 @@ A project-agnostic skeleton (placeholders in `<...>`). It is consumed at bootstr
 ```markdown
 # <Project> — Guidance
 
-Map of this repository's knowledge base: pointers, not content. The docs hold only what the code cannot tell; read the code for everything else. Where a doc and the code disagree, the code wins and the doc is fixed in the same change.
+Map of this repository's knowledge base: pointers, not content. The docs hold only what the code cannot tell; read the code for everything else. Where the code has moved past a doc, the code wins and the doc is fixed in the same change.
 
 ## Documentation Map
 
 - **ARCHITECTURE.md** — what is built: where things live, boundaries and invariants, non-obvious commands. Written from the code.
-- **docs/conventions.md** — rules for writing and committing code that tooling does not enforce.
+- **docs/conventions.md** — rules for writing and committing code that tooling does not enforce and the code does not consistently show.
 - **docs/guidelines/** — non-obvious platform and test-harness mechanics. Read when implementing.
-- **docs/decisions/** — append-only log of significant decisions and the alternatives they beat. The filenames are the index.
+- **docs/decisions/** — append-only log of significant decisions and the alternatives they beat; only choices that are hard to reverse, counterintuitive, or keep getting re-litigated get a file. The filenames are the index.
 - **docs/reference/** — dated external research; frozen. Never a source for what the product does.
 - **docs/vision.md** — what we are building and why: scope, increments, and the intended architecture, which stays here as intent even once built. Updated when intent changes, not when code lands.
 - **docs/roadmap.md** — increment status and sequence, plus the backlog.
-- **docs/specs/<axis>/*.md** — what each unit does as its users see it, and what no test covers.
+- **docs/specs/<axis>/*.md** — what each unit does as its users see it, and what no test covers. Each opens with `Source:`, the code paths it describes.
 - **docs/increments/<date-slug>/** — `design.md` + `plan.md` of an open increment; deleted when it closes.
 
 ## Reading order
@@ -88,7 +88,7 @@ Map of this repository's knowledge base: pointers, not content. The docs hold on
 - Statuses: `todo`, `active`, `blocked` (with its blocker and unblock condition), and the terminal `shipped`, `cancelled`, `superseded by <increment>`. A terminal increment is never reopened; start a new one.
 - Every design begins with `Touches:` — the units and shared surfaces it may change. Open increments with overlapping `Touches:` do not run in parallel.
 - When execution changes scope, interfaces, approach, or task order, update the design or plan at once.
-- Consolidate before integrating: specs for changed behavior, `ARCHITECTURE.md` for changed layout, boundaries, conventions, or commands, guidelines for a non-obvious mechanic, and decisions that clear the bar.
+- Consolidate before integrating: specs for changed behavior, `ARCHITECTURE.md` for changed layout, boundaries, architectural conventions, or commands, guidelines for a non-obvious mechanic, and decisions that clear the bar.
 - Close: set the terminal status and delete the increment's directory in the same change; its history stays in version control.
 - A brainstorm that only decomposes work is not an increment: its intent goes to the vision, its increments to the roadmap as `todo`, and a convention it adopts to its home at once.
 - Fixes, refactors, and chores skip design and plan but not consolidation. One that touches a surface named in an open increment's `Touches:` lands before that increment becomes `active` or after it closes.
@@ -126,8 +126,8 @@ To resume an increment in a fresh session:
 2. **Open the increment** at `docs/increments/YYYY-MM-DD-<slug>/`: `design.md`, beginning with `Touches:`, and `plan.md` beside it; set the roadmap status to `active`.
 3. **Execute** the plan. Keep it current, and update the design when scope, constraints, or approach change.
 4. **Verify** the implemented behavior with the project's test harness and any required live checks. Resolve failures before consolidating.
-5. **Consolidate**, before integration: update the specs of units whose behavior changed, including their **Not covered**; write any new layout, boundary, convention, or command into `ARCHITECTURE.md` from the code as it now stands — where the vision stated it as intent, that intent stays put, since this is a fresh write rather than a transfer; record a non-obvious mechanic in `docs/guidelines/`; and distil decisions that clear the bar, with the alternatives they beat, into `docs/decisions/`. This is the last chance to keep anything from the design: the next step deletes it.
-6. **Close the increment.** Integrate once verification and consolidation are done, set the roadmap status to `shipped`, and delete the increment's directory — in the same change where the integration mechanism allows it, otherwise immediately after. To mark it `cancelled` or `superseded by <increment>`, first account for partial work — remove it, leave it isolated, or consolidate whatever is kept — then delete the directory the same way. The design and plan survive in version control (the commits, or the merged pull request), which is where history belongs.
+5. **Consolidate**, before integration: update the specs of units whose behavior changed, including their **Not covered**; write any new layout, boundary, architectural convention, or command into `ARCHITECTURE.md` from the code as it now stands — where the vision stated it as intent, that intent stays put, since this is a fresh write rather than a transfer; record a non-obvious mechanic in `docs/guidelines/`; and distil decisions that clear the bar, with the alternatives they beat, into `docs/decisions/`. This is the last chance to keep anything from the design: the next step deletes it.
+6. **Close the increment.** Integrate once verification and consolidation are done, set the roadmap status to `shipped`, and delete the increment's directory — in the same change where the integration mechanism allows it, otherwise immediately after. To mark it `cancelled` or `superseded by <increment>`, first account for partial work — remove it, leave it isolated, or consolidate whatever is kept — then delete the directory the same way.
 
 Reserve "spec" for the durable per-unit docs; the brainstorm output is a "design".
 
@@ -166,11 +166,11 @@ When one repository holds several subprojects — often with different stacks or
 
 For a project on the [previous revision](operating-model-obsolete.md). Steps 2 and 5 can also be done lazily, the next time an increment touches the unit or file.
 
-1. For each `docs/tests/<axis>/<unit>.md`, move its gaps and live-only checks into a **Not covered** section at the end of the unit's spec; then delete `docs/tests/` and its entry in the map.
+1. For each `docs/tests/<axis>/<unit>.md`, move its gaps and live-only checks into a **Not covered** section at the end of the unit's spec; then delete `docs/tests/`.
 2. Trim each spec to what the unit does: drop every statement that would not survive a behavior-preserving refactor.
-3. For each increment with a terminal status, distil anything still binding into `docs/decisions/`, if it clears the bar, then delete its directory. The roadmap keeps its status.
+3. For each increment with a terminal status, move anything still binding into its home — a decision, if it clears the bar — then delete its directory. The roadmap keeps its status.
 4. Remove the `Touches:` summaries from roadmap entries; the design's line is the only one.
-5. Trim from `ARCHITECTURE.md` and `docs/conventions.md` what the build files, the tree, and the tooling already say.
+5. Trim from `ARCHITECTURE.md`, `docs/conventions.md`, and `docs/guidelines/` what the build files, the tree, the tooling, and the framework's own documentation already say.
 6. Update the canonical map from the template.
 
 ### 2026-08-18: Single-status increment layout
