@@ -4,7 +4,7 @@ Use this as the documentation and workflow model for the project — a lightweig
 
 The model assumes an agent that reads the code before acting and re-checks what a doc claims against it. Prose that restates the code is therefore pure cost: it fills context, takes time to maintain, and drifts. So the docs hold only what the code cannot. The previous, heavier revision is kept as [operating-model-obsolete.md](operating-model-obsolete.md).
 
-**Scope.** This model governs durable project knowledge, work-state handoff, and the entry and exit rules around an increment. It does not prescribe the task-execution engine (including the format of designs and plans), branching strategy, CI, review practice, release process, or incident response. A project may choose those independently, provided they preserve the source-of-truth and consolidation rules below.
+**Scope.** This model governs durable project knowledge, work-state handoff, and the entry and exit rules around an increment. It does not prescribe the task-execution engine (including the format of designs and plans), branching strategy, coordination of increments that run in parallel, CI, review practice, release process, or incident response. A project may choose those independently, provided they preserve the source-of-truth and consolidation rules below.
 
 ## Principles
 
@@ -46,7 +46,7 @@ Role of each file:
 - **docs/decisions/** — the append-only decision log: one file per significant decision, `NNNN-<slug>.md` (the number is a short citable handle — "see decision 0007"), structured as Status / Context / Decision / Consequences, with the rejected alternatives inside Context or Decision. The body never changes; only the Status does (`accepted` → `superseded by 0012`). The bar: hard to reverse, counterintuitive, or keeps getting re-litigated; routine choices get no file. A decision is recorded when it is acted on — a choice agreed but not yet implemented is still intent. It is never a source for current state.
 - **docs/reference/** — optional: verified external research the project relies on but does not own, e.g. what a reference product's public API documents. Each file is dated and frozen; redone research supersedes it in a new file. Never a source for what the product does: a spec or an open design wins.
 - **docs/specs/\<axis\>/** — one file per long-lived unit, grouped by unit type (a focused project may need a single axis). A spec describes **what the unit does**: its purpose, its behavior as its users — people or other code — see it, its contract, and the rules the code does not make obvious. Not how it is implemented. The test: a statement belongs in the spec only if it stays true after a refactor that preserves behavior. "A disabled button looks distinct and cannot take focus" passes; "the button's color comes from `--btn-color`" fails — it repeats the code. Each spec opens with `Source:`, the code paths it describes, and may end with **Not covered**: behaviors no automated test checks, each with a reason, including those verified only live. What the tests do cover is the test suite itself; the spec does not list it.
-- **docs/increments/\<YYYY-MM-DD-slug\>/** — the work state of an open increment: `design.md` and `plan.md`, in whatever format the project's skill flow produces, except that the design begins with `Touches:`. They are authoritative while the roadmap status is `active` or `blocked` and are deleted when it becomes terminal.
+- **docs/increments/\<YYYY-MM-DD-slug\>/** — the work state of an open increment: `design.md` and `plan.md`, in whatever format the project's skill flow produces. They are authoritative while the roadmap status is `active` or `blocked` and are deleted when it becomes terminal.
 
 Do not keep a single "current-state" snapshot file. Current architecture and behavior are the code, read through `ARCHITECTURE.md` and the specs.
 
@@ -86,12 +86,11 @@ Map of this repository's knowledge base: pointers, not content. The docs hold on
 
 - Increment cycle: brainstorm → `design.md` + `plan.md` in `docs/increments/YYYY-MM-DD-<slug>/` → roadmap `active` → execute → verify → consolidate → close.
 - Statuses: `todo`, `active`, `blocked` (with its blocker and unblock condition), and the terminal `shipped`, `cancelled`, `superseded by <increment>`. A terminal increment is never reopened; start a new one.
-- Every design begins with `Touches:` — the units and shared surfaces it may change. Open increments with overlapping `Touches:` do not run in parallel.
 - When execution changes scope, interfaces, approach, or task order, update the design or plan at once.
 - Consolidate before integrating: specs for changed behavior, `ARCHITECTURE.md` for changed layout, boundaries, architectural conventions, or commands, guidelines for a non-obvious mechanic, and decisions that clear the bar.
 - Close: set the terminal status and delete the increment's directory in the same change; its history stays in version control.
 - A brainstorm that only decomposes work is not an increment: its intent goes to the vision, its increments to the roadmap as `todo`, and a convention it adopts to its home at once.
-- Fixes, refactors, and chores skip design and plan but not consolidation. One that touches a surface named in an open increment's `Touches:` lands before that increment becomes `active` or after it closes.
+- Fixes, refactors, and chores skip design and plan but not consolidation.
 
 ## Documentation Hygiene
 
@@ -105,25 +104,23 @@ Map of this repository's knowledge base: pointers, not content. The docs hold on
 
 An **increment** is the unit of one cycle: a single coherent slice of work — a feature, a foundation — small enough to take through one brainstorm→design→plan→execute pass and decomposed into tasks inside its own plan. It is not a multi-cycle container (the Agile "epic"); a milestone such as an MVP is a *set* of increments. An increment is **open** while its roadmap status is `active` or `blocked`.
 
-### Lifecycle, resume, and concurrency
+### Lifecycle and resume
 
 `docs/roadmap.md` is the single source of increment lifecycle state. An increment moves from `todo` to `active`, may move between `active` and `blocked`, and ends as `shipped`, `cancelled`, or `superseded by <increment>`. A `blocked` entry records its blocker and the condition that would unblock it. A terminal increment is never reopened; later work on the same ground is a new increment.
 
 Not everything in the roadmap is an increment entry. Work done outside any increment — preparation before the first one, or work that predates adopting this model — may be recorded as prose with no status. Work not yet decomposed is shown as exactly that: a roadmap section that says "no increments yet" is a fact, not a gap. The brainstorm that decomposes it is not an increment and produces no design or plan: its intent goes to `docs/vision.md`, its increments to the roadmap as `todo`, and a convention it adopts to its home at once.
 
-The design's `Touches:` line names the long-lived units and shared architecture or guideline surfaces the increment expects to change. Open increments are safe to run in parallel only when their `Touches:` sets do not overlap; otherwise serialize them or merge the work into one increment. Work smaller than an increment has no `Touches:` line: where it would touch a surface named by an open increment, it lands before that increment becomes `active` or after it closes. This is an ownership rule for durable knowledge, not a branching strategy.
-
 To resume an increment in a fresh session:
 
 1. Read the canonical map and `ARCHITECTURE.md`.
 2. Read `docs/roadmap.md` and select an `active` increment. Select a `blocked` one only after confirming its unblock condition now holds and returning it to `active`.
-3. Read its design and plan, then the specs and decisions for the surfaces its `Touches:` names.
+3. Read its design and plan, then the specs and decisions for the units it changes.
 4. Inspect the working tree and recent commits, reconcile them with the plan, and update the design or plan if execution diverged before choosing the next task.
 
 ### Cycle
 
 1. **Brainstorm** the increment (intent, constraints, approach) and get approval of the design.
-2. **Open the increment** at `docs/increments/YYYY-MM-DD-<slug>/`: `design.md`, beginning with `Touches:`, and `plan.md` beside it; set the roadmap status to `active`.
+2. **Open the increment** at `docs/increments/YYYY-MM-DD-<slug>/`: `design.md` and `plan.md` beside it; set the roadmap status to `active`.
 3. **Execute** the plan. Keep it current, and update the design when scope, constraints, or approach change.
 4. **Verify** the implemented behavior with the project's test harness and any required live checks. Resolve failures before consolidating.
 5. **Consolidate**, before integration: update the specs of units whose behavior changed, including their **Not covered**; write any new layout, boundary, architectural convention, or command into `ARCHITECTURE.md` from the code as it now stands — where the vision stated it as intent, that intent stays put, since this is a fresh write rather than a transfer; record a non-obvious mechanic in `docs/guidelines/`; and distil decisions that clear the bar, with the alternatives they beat, into `docs/decisions/`. This is the last chance to keep anything from the design: the next step deletes it.
@@ -169,7 +166,7 @@ For a project on the [previous revision](operating-model-obsolete.md). Steps 2 a
 1. For each `docs/tests/<axis>/<unit>.md`, move its gaps and live-only checks into a **Not covered** section at the end of the unit's spec; then delete `docs/tests/`.
 2. Trim each spec to what the unit does: drop every statement that would not survive a behavior-preserving refactor.
 3. For each increment with a terminal status, move anything still binding into its home — a decision, if it clears the bar — then delete its directory. The roadmap keeps its status.
-4. Remove the `Touches:` summaries from roadmap entries; the design's line is the only one.
+4. Remove `Touches:` lines from roadmap entries and open designs; coordinating parallel increments is outside the model.
 5. Trim from `ARCHITECTURE.md`, `docs/conventions.md`, and `docs/guidelines/` what the build files, the tree, the tooling, and the framework's own documentation already say.
 6. Update the canonical map from the template.
 
