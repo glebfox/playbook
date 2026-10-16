@@ -8,7 +8,7 @@ Most of what makes agent-assisted development work isn't a tool you install — 
 
 ### Harness — how work is structured and carried across sessions
 
-- **[Operating Model: Repository as System of Record](harness/operating-model.md)** — a lightweight development harness. Keep durable knowledge in the repository, not in chat, in a deduplicated and progressively-disclosed structure (a thin map of pointers over deeper docs), so any session can resume work without re-reading everything. Covers the document layout, the spec-vs-guideline split, the decision log, the per-increment workflow, and how to bootstrap it in a new or existing repo.
+- **[Operating Model: Repository as System of Record](harness/operating-model.md)** — a lightweight development harness. Keep durable knowledge in the repository, not in chat, in a deduplicated and progressively-disclosed structure (a thin map of pointers over deeper docs), so any session can resume work without re-reading everything. Docs hold only what the code cannot tell — intent, rationale, behavior-level specs, and the state of unfinished work. Covers the document layout, the spec-vs-guideline split, the decision log, the per-increment workflow, and how to bootstrap it in a new or existing repo. The previous, heavier revision is kept as [operating-model-obsolete.md](harness/operating-model-obsolete.md).
 
 _More practices will land over time — prompting, code review, testing with agents, and so on._
 
