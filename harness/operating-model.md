@@ -8,12 +8,12 @@ The model assumes an agent that reads the code before acting and re-checks what 
 
 ## Principles
 
-- **Write down only what the repository cannot tell.** Docs hold intent (the vision), the why behind choices (decisions), the state of unfinished work (the roadmap and the open increment), and rules that tooling does not enforce and the code does not show. Everything else is read from the code. Where the code has moved past a doc, the code wins and the doc is fixed in the same change.
+- **Write down only what the repository cannot tell.** Docs hold intent (the vision), the why behind choices (decisions), the state of unfinished work (the roadmap and the open increment), and rules that no formatter, linter, or type checker enforces: those the code does not show, and every rule a test checks. Everything else is read from the code. Where the code has moved past a doc, the code wins and the doc is fixed in the same change.
 - **System of record is the repo, not chat.** Decisions, intent, and current state live in versioned files, not in conversation history.
 - **Table of contents, not encyclopedia.** The entry-point file is a thin map of pointers; detail lives in the documents it links to, read only when needed.
 - **One authoritative home.** Every durable fact has exactly one home; other docs link to it rather than restate it. Intent and the fact it became are not one fact with two homes: `docs/vision.md` saying what we set out to build and `ARCHITECTURE.md` recording what is built will often read alike, and neither is a duplicate to delete.
 - **Facts, not plans.** What the living docs (`ARCHITECTURE.md`, the specs) *describe* is what is already realized in code. The chosen stack, the planned layout, the intended contract are intent until they land: they live in the vision and the open increment, never in a living doc. A living doc with nothing to record yet stays nearly empty; that is correct, not a gap to fill with placeholders.
-- **Enforce, then point.** A rule that tooling checks — formatter, linter, type checker, architecture tests — lives in the tooling; a doc at most names the rule and where it is enforced.
+- **Enforce, then point.** A rule that a formatter, a linter, or a type checker enforces lives in that tool; a doc at most names the rule and the tool. A rule that a test checks, such as an architecture test, is written down as well, with its reason, where it belongs: an agent reads the docs before it writes code and rarely reads the tests, and a test that fails says neither the rule nor why. The doc lets the agent get it right the first time; the test catches the change that forgot it.
 - **Facts live apart from their why.** Living docs record what the system is; the reasoning behind a significant choice — context, rejected alternatives, trade-offs — is recorded once, append-only, in `docs/decisions/`. Living docs link to it instead of restating it.
 - **Source of truth follows the work.** During an open increment its code is authoritative for what already runs, and its design and plan for scope, approach, and remaining work; living docs may still describe the last stable state until consolidation, which happens before the change is integrated. When the increment closes, its design and plan are deleted: history lives in version control (the commits, or the merged pull request), not in the working tree, where a search would find it and mistake it for the present.
 
@@ -25,7 +25,7 @@ ARCHITECTURE.md           # what is built: where things live, boundaries and inv
 docs/
   vision.md               # what we are building and why; scope (MVP vs future); increments; intended architecture
   roadmap.md              # authoritative increment status + sequence + future backlog
-  conventions.md          # rules for writing and committing code that tooling does not enforce and the code does not show
+  conventions.md          # rules for writing and committing code that formatters and linters do not enforce
   guidelines/             # project-specific mechanics of the platform and the test harness that the code does not make obvious
   decisions/              # append-only decision log: one file per significant decision
   reference/              # optional: dated external research the project relies on; frozen
@@ -41,7 +41,7 @@ Role of each file:
 - **ARCHITECTURE.md** — how the product is built, written **from the code**: a bird's-eye map of where things live, the boundaries and invariants between parts (with where each is enforced, if it is), and the commands that are not obvious from the build files. Not an inventory of the stack or of every package — the build files and the tree already say that. It names areas and their roles, not the units inside them: a statement belongs only if it stays true when a class or file inside an area is added, renamed, or removed. A unit worth naming is named where it is described: a spec's `Source:` or a guideline. Architectural **conventions** are facts about what is in force: a convention is true once adopted, even where older code predates it, so record it with the state of compliance beside it — never as though compliance were complete. On a fresh repo the file holds one line: `Status: nothing built yet; the intended stack and layout live in docs/vision.md`. Process belongs in the map, not here.
 - **docs/vision.md** — product intent: the scope (MVP vs future), the increments as descriptions (what each is and why, not their status), and the intended architecture, which stays here as intent even once built. Its architecture section opens with `Intent, not current state; ARCHITECTURE.md is authoritative for what exists.` The vision is updated when intent changes — scope moved, increments added, split, or dropped, a target reconsidered — and never because code landed. A direction abandoned rather than realized is marked superseded in place, not deleted. The vision never depends on the decision log.
 - **docs/roadmap.md** — the authoritative status and sequence of each increment, plus the future-development backlog, which lives only here. Entries are short and structured; descriptions stay in the vision, subtasks in the plan, discussion in the design.
-- **docs/conventions.md** — rules for writing and committing code that tooling does not enforce and the existing code does not consistently show: commit format, the language of artifacts, a rule just adopted that older code does not follow yet, a counterintuitive house rule. How much lands here depends on the stack and its tooling; style that a formatter or linter enforces is not restated. Created when the first such rule is settled.
+- **docs/conventions.md** — rules for writing and committing code that no formatter, linter, or type checker enforces and the existing code does not consistently show: commit format, the language of artifacts, a rule just adopted that older code does not follow yet, a counterintuitive house rule. A rule that a test checks, such as an architecture test, is written here too, or in the guideline it belongs to, with its reason, however consistently the code follows it. How much lands here depends on the stack and its tooling; style that a formatter or linter enforces is not restated. Created when the first such rule is settled.
 - **docs/guidelines/** — project-specific mechanics of the framework, platform, or tooling that no single unit owns and the code does not make obvious: gotchas found the hard way, patterns that must be followed. Not a retelling of the framework's own documentation. The test harness and strategy live here too: how tests run and what can only be checked live. Registered as pointers from the map and read when implementing, not loaded by default.
 - **docs/decisions/** — the append-only decision log: one file per significant decision, `NNNN-<slug>.md` (the number is a short citable handle — "see decision 0007"), structured as Status / Context / Decision / Consequences, with the rejected alternatives inside Context or Decision. The body never changes; only the Status does (`accepted` → `superseded by 0012`). The bar: hard to reverse, counterintuitive, or keeps getting re-litigated; routine choices get no file. A decision is recorded when it is acted on — a choice agreed but not yet implemented is still intent. It is never a source for current state.
 - **docs/reference/** — optional: verified external research the project relies on but does not own, e.g. what a reference product's public API documents. Each file is dated and frozen; redone research supersedes it in a new file. Never a source for what the product does: a spec or an open design wins.
@@ -66,7 +66,7 @@ Map of this repository's knowledge base: pointers, not content. The docs hold on
 ## Documentation Map
 
 - **ARCHITECTURE.md** — what is built: where things live, boundaries and invariants, non-obvious commands. Written from the code.
-- **docs/conventions.md** — rules for writing and committing code that tooling does not enforce and the code does not consistently show.
+- **docs/conventions.md** — rules for writing and committing code that formatters and linters do not enforce and the code does not consistently show, and every rule a test checks.
 - **docs/guidelines/** — non-obvious platform and test-harness mechanics. Read when implementing.
 - **docs/decisions/** — append-only log of significant decisions and the alternatives they beat; only choices that are hard to reverse, counterintuitive, or keep getting re-litigated get a file. The filenames are the index.
 - **docs/reference/** — dated external research; frozen. Never a source for what the product does.
@@ -98,7 +98,7 @@ Map of this repository's knowledge base: pointers, not content. The docs hold on
 - `ARCHITECTURE.md` maps areas and their roles, not the units inside them: a statement belongs only if it survives adding, renaming, or removing a class or file.
 - Living docs describe what is built, never what is planned; nearly empty is correct until code lands.
 - Rationale lives in `docs/decisions/`, and living docs link to it. A decision is superseded, never edited, and never a source for current state.
-- Rules that tooling enforces are not restated in prose.
+- Style that a formatter or linter enforces is not restated in prose; a rule that a test checks is written down with its reason.
 ```
 
 ## Per-increment workflow
@@ -138,7 +138,7 @@ Bug fixes, refactors, chores, and any change that alters no durable unit's behav
 When applying this model to a repo — a fresh one, or one with code already in it:
 
 1. Establish `docs/vision.md` first, via a brainstorm: purpose, scope (MVP vs future), the increment breakdown, and the intended stack, layout, and architecture — before code exists these are intent, not facts.
-2. Create `ARCHITECTURE.md`. On a fresh repo it holds only the status line — a fact about the file's own state, not a placeholder; do not pre-populate it with the planned stack. Where code already exists, write it from the code on day one. Create `docs/conventions.md` only if rules that tooling does not enforce are already settled. Move any such facts that accumulated in CLAUDE.md/AGENTS.md into whichever fits.
+2. Create `ARCHITECTURE.md`. On a fresh repo it holds only the status line — a fact about the file's own state, not a placeholder; do not pre-populate it with the planned stack. Where code already exists, write it from the code on day one. Create `docs/conventions.md` only if rules that formatters and linters do not enforce are already settled. Move any such facts that accumulated in CLAUDE.md/AGENTS.md into whichever fits.
 3. Write the canonical thin map from the template above; any additional tool-specific entry point is a pointer to it or a symlink.
 4. Create `docs/roadmap.md` from the increments in the vision. Work done before adoption gets no retroactive increments; record it as prose, if at all.
 5. Create `docs/specs/<axis>/` and `docs/increments/` at the start of the first increment, and `docs/guidelines/`, `docs/decisions/`, and `docs/reference/` at first need. On an existing codebase specs are not backfilled: a unit gets one when an increment first touches it. The map lists every directory from day one; an entry for one that does not exist yet says so and when it will be created.
@@ -153,12 +153,19 @@ For a repository with multiple subprojects, see [Monorepo variant](#monorepo-var
 When one repository holds several subprojects — often with different stacks or languages — apply the same model on **two levels**, without duplicating facts between them.
 
 - **Product level (root):** `docs/vision.md`, `docs/roadmap.md`, a language-agnostic `docs/conventions.md` (commit format, language), and the root canonical map. The root `ARCHITECTURE.md` carries only what is **shared**: the repository layout and the **contract between subprojects** — the one place the file's scope widens from "how the product is built" to "how the subprojects fit together".
-- **Subproject level:** each subproject has its own thin map, its own `ARCHITECTURE.md`, and its own `docs/` — `specs/`, `guidelines/`, `decisions/`, and a `conventions.md` for the rules its own tooling does not enforce. The root never restates these; it links down to them.
+- **Subproject level:** each subproject has its own thin map, its own `ARCHITECTURE.md`, and its own `docs/` — `specs/`, `guidelines/`, `decisions/`, and a `conventions.md` for the rules its own formatters and linters do not enforce. The root never restates these; it links down to them.
 - **An increment's docs follow its center of gravity:** a cross-subproject increment keeps its directory in the root `docs/increments/`, one contained in a subproject under that subproject. Decisions follow the same rule. Either way, consolidation writes into the relevant subproject's specs.
 
 **Bootstrap delta.** Bootstrap steps 1–4 run once at the root. A subproject's map, `ARCHITECTURE.md`, and `docs/` are created lazily, typically by the increment that introduces the subproject.
 
 ## Migrations
+
+### 2026-11-16: Rules that tests check are written down
+
+For a project that kept a rule only in the test that checks it, as the previous wording of *Enforce, then point* asked.
+
+1. For each rule that a test checks, such as an architecture test, and no doc states, write the rule and its reason in `docs/conventions.md` or the guideline it belongs to.
+2. Update the canonical map's Documentation Hygiene from the template.
 
 ### 2026-10-16: Docs hold only what the code cannot
 
